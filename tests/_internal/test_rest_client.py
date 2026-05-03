@@ -18,7 +18,7 @@ def test_top_level_imports() -> None:
         sign_request,
     )
 
-    assert __version__ == "0.0.1"
+    assert __version__ == "0.1.0"
     assert BinanceRestClient is not None
     assert BinanceWSManager is not None
     assert ExecutionReport is not None

@@ -5,10 +5,11 @@ Mirrors shioaji SDK shape (sj.Contracts.Futures / sj.Order / etc) for use by
 lcz-sentinel project.
 
 v0.0.1: bootstrap from lcz-sentinel PR #421 _internal/ extraction.
-        Public API (BinanceClient, Order, Contracts, ...) coming in v0.1.x.
+v0.1.0: half public API — BinanceClient + Contracts + BinanceAccount.
+        Order / Quote / MarketInfo arrive in companion PR.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 from lcz_binance_sdk._internal import (
     BinanceRestClient,
@@ -17,8 +18,15 @@ from lcz_binance_sdk._internal import (
     sign_request,
     _TokenBucket,
 )
+from lcz_binance_sdk.account import BinanceAccount
+from lcz_binance_sdk.client import BinanceClient
+from lcz_binance_sdk.contracts import BinanceContract, Contracts
 
 __all__ = [
+    "BinanceClient",
+    "BinanceAccount",
+    "BinanceContract",
+    "Contracts",
     "BinanceRestClient",
     "BinanceWSManager",
     "ExecutionReport",

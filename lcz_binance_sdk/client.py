@@ -1,18 +1,15 @@
 """
 lcz_binance_sdk/client.py — BinanceClient top-level entry
-=========================================================
 
 Mirrors shioaji `sj.Shioaji(simulation=...)` shape:
     bn = BinanceClient(testnet=False)
     await bn.login(api_key, secret_key)
     contract = bn.Contracts.Perp["BTCUSDT"]
+    order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
+    resp = await bn.place_order(contract, order)
     positions = await bn.list_positions(bn.futures_account)
     balance = await bn.account_balance()
     await bn.logout()
-
-This file lands the *half* public API — Contracts / Account / lifecycle /
-position+balance queries. Order / Quote / MarketInfo are companion-PR scope
-and remain `NotImplementedError` placeholders.
 """
 from __future__ import annotations
 
@@ -26,7 +23,16 @@ from lcz_binance_sdk._internal import (
     LISTEN_KEY_KEEPALIVE_INTERVAL,
 )
 from lcz_binance_sdk.account import BinanceAccount
-from lcz_binance_sdk.contracts import Contracts
+from lcz_binance_sdk.contracts import BinanceContract, Contracts
+from lcz_binance_sdk.market_info import MarketInfo
+from lcz_binance_sdk.order import (
+    Order as _Order,
+    OrderResponse,
+    cancel_order_via,
+    list_trades_via,
+    place_order_via,
+)
+from lcz_binance_sdk.quote import Quote
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +87,10 @@ class BinanceClient:
 
         # Public namespaces
         self.Contracts = Contracts(self)
-        # Companion-PR scope placeholders — agent B fills these in
-        self.quote: Any = None
-        self.market_info: Any = None
+        self.quote = Quote(self)
+        self.market_info = MarketInfo(self)
+        # Order builder — bn.Order(...) returns Order dataclass instance
+        self.Order = _Order
 
         # Hooks
         self.on_session_down: Optional[Callable[[], None]] = None
@@ -278,31 +285,25 @@ class BinanceClient:
             "maintenance_margin": float(usdt.get("maintMargin", 0.0)),
         }
 
-    # ── Companion-PR placeholders (agent B) ──────────────────────────────
+    # ── Order placement / cancellation / query ───────────────────────────
 
-    def Order(self, **kwargs: Any) -> Any:
-        """Order builder — companion PR. See agent B."""
-        raise NotImplementedError(
-            "BinanceClient.Order is part of the companion PR (Order/Quote/MarketInfo)."
+    async def place_order(
+        self, contract: BinanceContract, order: _Order
+    ) -> OrderResponse:
+        """Mirror shioaji `sj.place_order(contract, order)`."""
+        return await place_order_via(
+            self._require_rest(), contract, order, base_url=self._base_url
         )
 
-    async def place_order(self, contract: Any, order: Any) -> Any:
-        """Place order — companion PR. See agent B."""
-        raise NotImplementedError(
-            "BinanceClient.place_order is part of the companion PR (Order/Quote/MarketInfo)."
-        )
+    async def cancel_order(self, symbol: str, order_id: str) -> bool:
+        """Mirror shioaji `sj.cancel_order(trade)` (Binance needs symbol + order_id)."""
+        return await cancel_order_via(self._require_rest(), symbol, order_id)
 
-    async def cancel_order(self, order_id: str) -> Any:
-        """Cancel order — companion PR. See agent B."""
-        raise NotImplementedError(
-            "BinanceClient.cancel_order is part of the companion PR (Order/Quote/MarketInfo)."
-        )
-
-    async def list_trades(self) -> Any:
-        """List recent trades — companion PR. See agent B."""
-        raise NotImplementedError(
-            "BinanceClient.list_trades is part of the companion PR (Order/Quote/MarketInfo)."
-        )
+    async def list_trades(
+        self, symbol: str | None = None, limit: int = 500
+    ) -> list[OrderResponse]:
+        """Mirror shioaji `sj.list_trades()`."""
+        return await list_trades_via(self._require_rest(), symbol=symbol, limit=limit)
 
     # ── Helpers ──────────────────────────────────────────────────────────
 

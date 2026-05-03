@@ -1,29 +1,27 @@
-"""Smoke tests for lcz_binance_sdk._internal.rest_client.
-
-Bootstrap-level: only verify imports and pure-function behavior (sign_request,
-_TokenBucket arithmetic). Network-touching tests come in v0.1.x.
-"""
+"""Smoke tests for lcz_binance_sdk._internal.rest_client."""
 from __future__ import annotations
 
 import pytest
 
 
-def test_top_level_imports() -> None:
+def test_public_top_level_imports() -> None:
     from lcz_binance_sdk import (
-        BinanceRestClient,
-        BinanceWSManager,
+        BinanceAccount,
+        BinanceClient,
+        BinanceContract,
+        Contracts,
         ExecutionReport,
-        _TokenBucket,
+        MarketInfo,
+        Order,
+        OrderResponse,
+        Quote,
         __version__,
-        sign_request,
     )
 
     assert __version__ == "0.1.0"
-    assert BinanceRestClient is not None
-    assert BinanceWSManager is not None
-    assert ExecutionReport is not None
-    assert _TokenBucket is not None
-    assert callable(sign_request)
+    for cls in (BinanceClient, BinanceAccount, BinanceContract, Contracts,
+                Order, OrderResponse, Quote, MarketInfo, ExecutionReport):
+        assert cls is not None
 
 
 def test_internal_imports() -> None:
@@ -34,6 +32,10 @@ def test_internal_imports() -> None:
         VALID_KLINE_INTERVALS,
         WS_RECONNECT_BASE,
         WS_RECONNECT_MAX,
+        BinanceRestClient,
+        BinanceWSManager,
+        _TokenBucket,
+        sign_request,
     )
 
     assert _WEIGHT_LIMIT_PER_MIN == 2400
@@ -42,29 +44,32 @@ def test_internal_imports() -> None:
     assert LISTEN_KEY_KEEPALIVE_INTERVAL == 30 * 60
     assert WS_RECONNECT_BASE == 1.0
     assert WS_RECONNECT_MAX == 60.0
+    assert BinanceRestClient is not None
+    assert BinanceWSManager is not None
+    assert _TokenBucket is not None
+    assert callable(sign_request)
 
 
 def test_sign_request_pure_function() -> None:
-    from lcz_binance_sdk import sign_request
+    from lcz_binance_sdk._internal import sign_request
 
     out = sign_request("test_secret", {"symbol": "BTCUSDT"})
     assert "timestamp" in out
     assert "signature" in out
     assert out["symbol"] == "BTCUSDT"
-    # signature is hex-encoded HMAC-SHA256 → 64 hex chars
     assert len(out["signature"]) == 64
     assert all(c in "0123456789abcdef" for c in out["signature"])
 
 
 def test_sign_request_rejects_empty_secret() -> None:
-    from lcz_binance_sdk import sign_request
+    from lcz_binance_sdk._internal import sign_request
 
     with pytest.raises(ValueError):
         sign_request("", {"symbol": "BTCUSDT"})
 
 
 def test_token_bucket_initial_capacity() -> None:
-    from lcz_binance_sdk import _TokenBucket
+    from lcz_binance_sdk._internal import _TokenBucket
 
     bucket = _TokenBucket(capacity=100, window_seconds=10.0)
     assert bucket.capacity == 100

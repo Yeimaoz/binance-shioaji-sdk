@@ -76,16 +76,28 @@ async def test_login_rejects_empty_credentials() -> None:
 
 
 @pytest.mark.asyncio
-async def test_place_order_raises_not_implemented() -> None:
+async def test_order_methods_require_login() -> None:
+    """Wire-in: place_order/cancel_order/list_trades raise RuntimeError when not logged in."""
     bn = BinanceClient(testnet=True)
-    with pytest.raises(NotImplementedError):
-        await bn.place_order(contract=None, order=None)
-    with pytest.raises(NotImplementedError):
-        await bn.cancel_order("dummy:123")
-    with pytest.raises(NotImplementedError):
+    contract = bn.Contracts.Perp["BTCUSDT"]
+    order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
+    with pytest.raises(RuntimeError, match="not logged in"):
+        await bn.place_order(contract, order)
+    with pytest.raises(RuntimeError, match="not logged in"):
+        await bn.cancel_order("BTCUSDT", "123")
+    with pytest.raises(RuntimeError, match="not logged in"):
         await bn.list_trades()
-    with pytest.raises(NotImplementedError):
-        bn.Order(price=100.0, quantity=1)
+
+
+def test_quote_marketinfo_namespaces_wired() -> None:
+    """Wire-in: quote / market_info / Order all live and callable from BinanceClient."""
+    bn = BinanceClient(testnet=True)
+    from lcz_binance_sdk import MarketInfo, Order, Quote
+    assert isinstance(bn.quote, Quote)
+    assert isinstance(bn.market_info, MarketInfo)
+    assert bn.Order is Order
+    o = bn.Order(price=100, quantity=1, action="long", price_type="LMT")
+    assert o.price == 100 and o.quantity == 1
 
 
 def test_on_session_down_callback_assignable() -> None:

@@ -120,8 +120,8 @@ class BinanceWSManager:
 
     # ── 通用 combined stream 連線迴圈 ─────────────────────────────────────
 
-    @staticmethod
     async def run_combined_stream(
+        self,
         streams: list[str],
         on_message: Callable[[dict], None | Awaitable[None]],
         stop_event: asyncio.Event,
@@ -162,8 +162,8 @@ class BinanceWSManager:
                 await asyncio.sleep(1.0)
                 continue
 
-            url = f"wss://fstream.binance.com/stream?streams={'/'.join(streams)}"
-            logger.info("%s WS 連接: %d streams", log_prefix, len(streams))
+            url = f"{self.base_url.rstrip('/')}/stream?streams={'/'.join(streams)}"
+            logger.info("%s WS 連接: %d streams (base=%s)", log_prefix, len(streams), self.base_url)
 
             try:
                 async with websockets.connect(
@@ -210,8 +210,8 @@ class BinanceWSManager:
 
         logger.info("%s WS task 結束", log_prefix)
 
-    @staticmethod
     async def run_user_stream(
+        self,
         get_listen_key: Callable[[], Awaitable[str | None]],
         on_message: Callable[[dict], None],
         stop_event: asyncio.Event,
@@ -242,8 +242,8 @@ class BinanceWSManager:
                 logger.error("%s 無法取得 listenKey，停止重連", log_prefix)
                 break
 
-            url = f"wss://fstream.binance.com/ws/{listen_key}"
-            logger.info("%s WS 連接 (attempt %d)", log_prefix, attempt)
+            url = f"{self.base_url.rstrip('/')}/ws/{listen_key}"
+            logger.info("%s WS 連接 (attempt %d, base=%s)", log_prefix, attempt, self.base_url)
 
             try:
                 async with websockets.connect(

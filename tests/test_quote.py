@@ -15,9 +15,15 @@ class _FakeContract:
 class _FakeClient:
     """Stub BinanceClient: only what Quote needs."""
 
-    def __init__(self, api_key: str | None = None, base_url: str = "https://fapi.binance.com") -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str = "https://fapi.binance.com",
+        ws_base_url: str = "wss://fstream.binance.com",
+    ) -> None:
         self.api_key = api_key
         self._base_url = base_url
+        self._ws_base_url = ws_base_url
 
         class _RestStub:
             def __init__(self) -> None:
@@ -49,6 +55,22 @@ async def test_subscribe_registers_tick_callback_and_starts_task(monkeypatch: py
     # Dispatch a synthetic markPriceUpdate
     q._dispatch_mark_price({"e": "markPriceUpdate", "s": "BTCUSDT", "p": "50000.5", "E": 1700000000000})
     assert received and received[0][0] == "BTCUSDT" and received[0][1] == 50000.5
+
+
+@pytest.mark.asyncio
+async def test_quote_propagates_testnet_ws_base_url() -> None:
+    """v0.2.1 regression: Quote 應從 client._ws_base_url 拿 testnet WS URL，
+    傳給 BinanceWSManager。Pre-fix bug：Quote 用 hardcode mainnet URL。"""
+    from lcz_binance_sdk.quote import Quote
+
+    testnet_client = _FakeClient(ws_base_url="wss://stream.binancefuture.com")
+    q = Quote(testnet_client)
+
+    assert q._ws_manager.base_url == "wss://stream.binancefuture.com"
+
+    mainnet_client = _FakeClient(ws_base_url="wss://fstream.binance.com")
+    q2 = Quote(mainnet_client)
+    assert q2._ws_manager.base_url == "wss://fstream.binance.com"
 
 
 @pytest.mark.asyncio

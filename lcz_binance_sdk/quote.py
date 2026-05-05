@@ -110,8 +110,9 @@ class Quote:
         self._execution_reports: dict[str, ExecutionReport] = {}
         self._fill_events: dict[str, asyncio.Event] = {}
 
-        # Lazy-import websockets manager
-        self._ws_manager = BinanceWSManager()
+        # Lazy-import websockets manager — 從 client 拿 ws base URL（mainnet vs testnet）
+        ws_base = getattr(client, "_ws_base_url", None) or "wss://fstream.binance.com"
+        self._ws_manager = BinanceWSManager(base_url=ws_base)
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -481,7 +482,7 @@ class Quote:
         def _clear() -> None:
             self._listen_key = None
 
-        await BinanceWSManager.run_user_stream(
+        await self._ws_manager.run_user_stream(
             get_listen_key=_get_key,
             on_message=self._handle_user_event,
             stop_event=self._stop_event,

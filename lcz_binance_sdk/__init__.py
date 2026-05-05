@@ -16,7 +16,7 @@ Public API:
     await bn.logout()
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.1"
 
 from lcz_binance_sdk._internal.types import ExecutionReport
 from lcz_binance_sdk.account import BinanceAccount

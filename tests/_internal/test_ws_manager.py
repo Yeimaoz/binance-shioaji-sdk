@@ -27,6 +27,79 @@ from lcz_binance_sdk._internal import (
 # ---------------------------------------------------------------------------
 
 
+class TestWSBaseURL:
+    """v0.2.1 regression: testnet WS URL must thread through ws_manager.
+
+    Pre-fix bug: client.py 算對 _ws_base_url 但 BinanceWSManager 內部 hardcode
+    `wss://fstream.binance.com`，導致 testnet=True 時還是連 mainnet → testnet
+    pricefeed 收不到 tick。
+    """
+
+    def test_default_base_url_is_mainnet(self) -> None:
+        ws = BinanceWSManager()
+        assert ws.base_url == "wss://fstream.binance.com"
+
+    def test_explicit_testnet_base_url_stored(self) -> None:
+        ws = BinanceWSManager(base_url="wss://stream.binancefuture.com")
+        assert ws.base_url == "wss://stream.binancefuture.com"
+
+    async def test_combined_stream_uses_instance_base_url(self) -> None:
+        """run_combined_stream 應使用 self.base_url 構造 URL，不再 hardcode mainnet。"""
+        import sys
+        import types
+
+        captured_urls: list[str] = []
+
+        class _FakeCtx:
+            async def __aenter__(self):
+                # Capture URL via outer closure — first connect call
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                # Trigger stop after first iteration
+                stop_evt.set()
+                raise StopAsyncIteration
+
+        def _fake_connect(url: str, **kwargs):  # noqa: ARG001
+            captured_urls.append(url)
+            return _FakeCtx()
+
+        fake_ws = types.SimpleNamespace(connect=_fake_connect)
+        fake_exc = types.SimpleNamespace(
+            ConnectionClosedError=type("CCE", (Exception,), {}),
+            ConnectionClosedOK=type("CCO", (Exception,), {}),
+        )
+        sys.modules["websockets"] = fake_ws  # type: ignore[assignment]
+        sys.modules["websockets.exceptions"] = fake_exc  # type: ignore[assignment]
+
+        stop_evt = asyncio.Event()
+        ws = BinanceWSManager(base_url="wss://stream.binancefuture.com")
+        try:
+            await asyncio.wait_for(
+                ws.run_combined_stream(
+                    streams=["btcusdt@bookTicker"],
+                    on_message=lambda d: None,
+                    stop_event=stop_evt,
+                    max_attempts=1,
+                ),
+                timeout=2.0,
+            )
+        finally:
+            sys.modules.pop("websockets", None)
+            sys.modules.pop("websockets.exceptions", None)
+
+        assert captured_urls, "websockets.connect 必須被呼叫"
+        assert captured_urls[0].startswith("wss://stream.binancefuture.com/stream"), (
+            f"testnet base_url 沒被使用，實際 URL={captured_urls[0]}"
+        )
+
+
 class TestConstants:
     def test_constants_values(self) -> None:
         assert LISTEN_KEY_KEEPALIVE_INTERVAL == 30 * 60
@@ -168,7 +241,7 @@ class TestRunCombinedStream:
             raise AssertionError("on_message must not fire when stop is preset")
 
         # Should return without trying to connect
-        await BinanceWSManager.run_combined_stream(
+        await BinanceWSManager().run_combined_stream(
             streams=["btcusdt@bookTicker"],
             on_message=cb,
             stop_event=stop,
@@ -183,7 +256,7 @@ class TestRunCombinedStream:
 
         # streams=[] -> goes through `await asyncio.sleep(1.0)` branch; we cancel via stop
         task = asyncio.create_task(
-            BinanceWSManager.run_combined_stream(
+            BinanceWSManager().run_combined_stream(
                 streams=[],
                 on_message=lambda d: None,
                 stop_event=stop,
@@ -226,7 +299,7 @@ class TestRunCombinedStream:
 
         try:
             await asyncio.wait_for(
-                BinanceWSManager.run_combined_stream(
+                BinanceWSManager().run_combined_stream(
                     streams=["btcusdt@bookTicker"],
                     on_message=on_message,
                     stop_event=stop,
@@ -259,7 +332,7 @@ class TestRunCombinedStream:
         try:
             stop = asyncio.Event()
             await asyncio.wait_for(
-                BinanceWSManager.run_combined_stream(
+                BinanceWSManager().run_combined_stream(
                     streams=["btcusdt@bookTicker"],
                     on_message=lambda _: None,
                     stop_event=stop,
@@ -283,7 +356,7 @@ class TestRunUserStream:
         get_lk = AsyncMock(return_value=None)
         on_msg = MagicMock()
 
-        await BinanceWSManager.run_user_stream(
+        await BinanceWSManager().run_user_stream(
             get_listen_key=get_lk,
             on_message=on_msg,
             stop_event=stop,
@@ -312,7 +385,7 @@ class TestRunUserStream:
 
         try:
             await asyncio.wait_for(
-                BinanceWSManager.run_user_stream(
+                BinanceWSManager().run_user_stream(
                     get_listen_key=get_lk,
                     on_message=on_msg,
                     stop_event=stop,

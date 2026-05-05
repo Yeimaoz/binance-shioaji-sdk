@@ -1,6 +1,6 @@
 [project]
 name = "lcz-binance-sdk"
-version = "0.1.0"
+version = "0.2.1"
 description = "Async Python SDK for Binance Futures (lcz-sentinel internal, mirrors shioaji SDK shape)"
 authors = [{name = "Li-Cheng Zheng", email = "2vry47bxz5@privaterelay.appleid.com"}]
 license = {text = "Apache-2.0"}

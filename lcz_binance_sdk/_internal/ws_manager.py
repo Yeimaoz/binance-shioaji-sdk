@@ -134,7 +134,7 @@ class BinanceWSManager:
 
         - 連 wss://fstream.binance.com/stream?streams=<stream1>/<stream2>/...
         - 收到 message 解 json，把 data 部分傳給 on_message
-        - 心跳由 websockets 庫 ping_interval=30s 處理
+        - 心跳由 websockets 庫 ping_interval=20s 處理
         - 斷線指數退避重連，stop_event.set() 後跳出
         - max_attempts: None=無限重連；正整數=超過後停止（subscribe_kline 用 5）
 
@@ -168,7 +168,7 @@ class BinanceWSManager:
             try:
                 async with websockets.connect(
                     url,
-                    ping_interval=30,
+                    ping_interval=20,
                     ping_timeout=10,
                     close_timeout=5,
                 ) as ws:
@@ -184,14 +184,14 @@ class BinanceWSManager:
                                 await on_message(data)
                             else:
                                 on_message(data)
-                        except (json.JSONDecodeError, KeyError):
-                            pass
+                        except (json.JSONDecodeError, KeyError) as exc:
+                            logger.debug("%s JSON decode/key error: %s (raw=%s)", log_prefix, exc, raw[:100] if isinstance(raw, str) else raw)
 
             except (ConnectionClosedOK,):
                 if stop_event.is_set():
                     break
             except (ConnectionClosedError, OSError, Exception) as exc:
-                logger.warning("%s WS 斷線（attempt %d）: %s", log_prefix, attempt, exc)
+                logger.warning("%s WS 斷線（attempt %d）: %s", log_prefix, attempt, exc, exc_info=True)
 
             if stop_event.is_set():
                 break
@@ -248,7 +248,7 @@ class BinanceWSManager:
             try:
                 async with websockets.connect(
                     url,
-                    ping_interval=30,
+                    ping_interval=20,
                     ping_timeout=10,
                     close_timeout=5,
                 ) as ws:

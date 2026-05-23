@@ -1,11 +1,11 @@
-"""Tests for lcz_binance_sdk.contracts."""
+"""Tests for binance_shioaji_sdk.contracts."""
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 
 import pytest
 
-from lcz_binance_sdk import BinanceClient, BinanceContract
+from binance_shioaji_sdk import BinanceClient, BinanceContract
 
 
 def test_perp_lookup_returns_binance_contract() -> None:

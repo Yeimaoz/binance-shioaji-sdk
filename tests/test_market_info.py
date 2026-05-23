@@ -1,4 +1,4 @@
-"""Tests for lcz_binance_sdk.market_info.MarketInfo."""
+"""Tests for binance_shioaji_sdk.market_info.MarketInfo."""
 from __future__ import annotations
 
 from typing import Any
@@ -27,7 +27,7 @@ class _FakeClient:
 
 @pytest.mark.asyncio
 async def test_funding_rate_happy_path() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -47,7 +47,7 @@ async def test_funding_rate_happy_path() -> None:
 
 @pytest.mark.asyncio
 async def test_open_interest_happy_path() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     # First call: openInterest. Second: premiumIndex (for USDT notional)
@@ -69,7 +69,7 @@ async def test_open_interest_happy_path() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_with_bounds() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -98,7 +98,7 @@ async def test_funding_rate_history_with_bounds() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_returns_empty_on_error() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/fundingRate", {"error": "HTTP 500"})
@@ -117,7 +117,7 @@ async def test_funding_rate_history_returns_empty_on_error() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_symbol_already_usdt_no_double_suffix() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -133,7 +133,7 @@ async def test_funding_rate_symbol_already_usdt_no_double_suffix() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_returns_error_dict_on_4xx() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -146,7 +146,7 @@ async def test_funding_rate_returns_error_dict_on_4xx() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_symbol_normalization() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -161,7 +161,7 @@ async def test_funding_rate_history_symbol_normalization() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_limit_minimum_1() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/fundingRate", [])
@@ -172,7 +172,7 @@ async def test_funding_rate_history_limit_minimum_1() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_no_time_params_not_forwarded() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/fundingRate", [])
@@ -185,7 +185,7 @@ async def test_funding_rate_history_no_time_params_not_forwarded() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_uses_correct_endpoint() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/fundingRate", [])
@@ -197,7 +197,7 @@ async def test_funding_rate_history_uses_correct_endpoint() -> None:
 
 @pytest.mark.asyncio
 async def test_open_interest_symbol_auto_appends_usdt() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -215,7 +215,7 @@ async def test_open_interest_symbol_auto_appends_usdt() -> None:
 
 @pytest.mark.asyncio
 async def test_open_interest_api_error_returns_error_dict() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/openInterest",
@@ -229,7 +229,7 @@ async def test_open_interest_api_error_returns_error_dict() -> None:
 @pytest.mark.asyncio
 async def test_open_interest_mark_price_failure_yields_zero_usdt() -> None:
     """When premiumIndex fails the OI value is preserved but USDT notional = 0."""
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -249,7 +249,7 @@ async def test_open_interest_mark_price_failure_yields_zero_usdt() -> None:
 @pytest.mark.asyncio
 async def test_open_interest_usdt_calculation() -> None:
     """oi_usdt ≈ oi * mark_price (rounded to 2 decimals)."""
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(
@@ -265,7 +265,7 @@ async def test_open_interest_usdt_calculation() -> None:
 
 @pytest.mark.asyncio
 async def test_funding_rate_history_partial_bad_entry_skipped() -> None:
-    from lcz_binance_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.market_info import MarketInfo
 
     client = _FakeClient()
     client._rest.queue(

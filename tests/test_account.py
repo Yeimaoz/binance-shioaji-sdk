@@ -1,7 +1,7 @@
-"""Tests for lcz_binance_sdk.account.BinanceAccount."""
+"""Tests for binance_shioaji_sdk.account.BinanceAccount."""
 from __future__ import annotations
 
-from lcz_binance_sdk import BinanceAccount, BinanceClient
+from binance_shioaji_sdk import BinanceAccount, BinanceClient
 
 
 def test_binance_account_creates_ok() -> None:

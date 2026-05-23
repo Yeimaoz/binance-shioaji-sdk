@@ -1,5 +1,5 @@
 """
-lcz_binance_sdk/market_info.py - MarketInfo namespace (crypto-only)
+binance_shioaji_sdk/market_info.py - MarketInfo namespace (crypto-only)
 ===================================================================
 
 Mirrors the lcz-sentinel `BinanceAdapter.get_funding_rate` /
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from lcz_binance_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import BinanceClient
 
 logger = logging.getLogger(__name__)
 

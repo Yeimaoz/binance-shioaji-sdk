@@ -1,4 +1,4 @@
-"""Tests for lcz_binance_sdk.client.BinanceClient.
+"""Tests for binance_shioaji_sdk.client.BinanceClient.
 
 Covers: testnet base_url switching, login/logout state, placeholder
 NotImplementedError surface, on_session_down hook assignability.
@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from lcz_binance_sdk import BinanceAccount, BinanceClient
-from lcz_binance_sdk.client import (
+from binance_shioaji_sdk import BinanceAccount, BinanceClient
+from binance_shioaji_sdk.client import (
     BINANCE_FUTURES_BASE,
     BINANCE_FUTURES_TESTNET,
     BINANCE_WS_BASE,
@@ -40,16 +40,16 @@ async def test_login_sets_connected_true_and_logout_resets() -> None:
     bn = BinanceClient(testnet=True)
 
     with patch(
-        "lcz_binance_sdk.client.BinanceWSManager.create_listen_key",
+        "binance_shioaji_sdk.client.BinanceWSManager.create_listen_key",
         new=AsyncMock(return_value="fake_listen_key_xyz"),
     ), patch(
-        "lcz_binance_sdk._internal.rest_client.BinanceRestClient.connect",
+        "binance_shioaji_sdk._internal.rest_client.BinanceRestClient.connect",
         new=AsyncMock(return_value=None),
     ), patch(
-        "lcz_binance_sdk._internal.rest_client.BinanceRestClient._ensure_client",
+        "binance_shioaji_sdk._internal.rest_client.BinanceRestClient._ensure_client",
         return_value=object(),
     ), patch(
-        "lcz_binance_sdk._internal.rest_client.BinanceRestClient.close",
+        "binance_shioaji_sdk._internal.rest_client.BinanceRestClient.close",
         new=AsyncMock(return_value=None),
     ):
         assert bn.is_connected is False
@@ -92,7 +92,7 @@ async def test_order_methods_require_login() -> None:
 def test_quote_marketinfo_namespaces_wired() -> None:
     """Wire-in: quote / market_info / Order all live and callable from BinanceClient."""
     bn = BinanceClient(testnet=True)
-    from lcz_binance_sdk import MarketInfo, Order, Quote
+    from binance_shioaji_sdk import MarketInfo, Order, Quote
     assert isinstance(bn.quote, Quote)
     assert isinstance(bn.market_info, MarketInfo)
     assert bn.Order is Order

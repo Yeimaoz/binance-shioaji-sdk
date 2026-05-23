@@ -1,4 +1,4 @@
-"""Tests for lcz_binance_sdk._internal.rest_client.
+"""Tests for binance_shioaji_sdk._internal.rest_client.
 
 Covers sign_request (HMAC-SHA256), BinanceRestClient HTTP methods (GET/POST/DELETE),
 and _TokenBucket rate-limiting. Mirrors lcz-sentinel adapter test_broker_binance.py
@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 import httpx
 import pytest
 
-from lcz_binance_sdk._internal import (
+from binance_shioaji_sdk._internal import (
     BinanceRestClient,
     _ENDPOINT_WEIGHTS,
     _TokenBucket,
@@ -30,7 +30,7 @@ from lcz_binance_sdk._internal import (
 
 
 def test_public_top_level_imports() -> None:
-    from lcz_binance_sdk import (
+    from binance_shioaji_sdk import (
         BinanceAccount,
         BinanceClient,
         BinanceContract,
@@ -59,7 +59,7 @@ def test_internal_imports() -> None:
 
 
 def test_execution_report_dataclass() -> None:
-    from lcz_binance_sdk import ExecutionReport
+    from binance_shioaji_sdk import ExecutionReport
 
     rpt = ExecutionReport(
         order_id="123",

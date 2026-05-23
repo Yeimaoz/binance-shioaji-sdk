@@ -1,4 +1,4 @@
-"""Shared test fixtures for lcz-binance-sdk."""
+"""Shared test fixtures for binance-shioaji-sdk."""
 from __future__ import annotations
 
 import json

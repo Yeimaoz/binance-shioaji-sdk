@@ -1,5 +1,5 @@
 """
-lcz_binance_sdk/account.py — Binance account placeholder
+binance_shioaji_sdk/account.py — Binance account placeholder
 ========================================================
 
 Mirrors shioaji `sj.futopt_account` placeholder shape — used as a parameter
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from lcz_binance_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import BinanceClient
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-"""Tests for lcz_binance_sdk.quote.Quote namespace."""
+"""Tests for binance_shioaji_sdk.quote.Quote namespace."""
 from __future__ import annotations
 
 import asyncio
@@ -39,7 +39,7 @@ class _FakeClient:
 
 @pytest.mark.asyncio
 async def test_subscribe_registers_tick_callback_and_starts_task(monkeypatch: pytest.MonkeyPatch) -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient())
     # Replace the WS task body with a no-op so create_task doesn't dial out
@@ -61,7 +61,7 @@ async def test_subscribe_registers_tick_callback_and_starts_task(monkeypatch: py
 async def test_quote_propagates_testnet_ws_base_url() -> None:
     """v0.2.1 regression: Quote 應從 client._ws_base_url 拿 testnet WS URL，
     傳給 BinanceWSManager。Pre-fix bug：Quote 用 hardcode mainnet URL。"""
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     testnet_client = _FakeClient(ws_base_url="wss://stream.binancefuture.com")
     q = Quote(testnet_client)
@@ -75,7 +75,7 @@ async def test_quote_propagates_testnet_ws_base_url() -> None:
 
 @pytest.mark.asyncio
 async def test_dispatch_mark_price_drops_invalid_payloads(monkeypatch: pytest.MonkeyPatch) -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient())
     monkeypatch.setattr(Quote, "_run_mark_price_loop", AsyncMock(return_value=None))
@@ -95,7 +95,7 @@ async def test_dispatch_mark_price_drops_invalid_payloads(monkeypatch: pytest.Mo
 
 @pytest.mark.asyncio
 async def test_global_tick_callback_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient())
     monkeypatch.setattr(Quote, "_run_mark_price_loop", AsyncMock(return_value=None))
@@ -120,7 +120,7 @@ async def test_global_tick_callback_path(monkeypatch: pytest.MonkeyPatch) -> Non
 
 @pytest.mark.asyncio
 async def test_subscribe_kline_validates_interval(monkeypatch: pytest.MonkeyPatch) -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient())
     monkeypatch.setattr(Quote, "_run_kline_loop", AsyncMock(return_value=None))
@@ -159,7 +159,7 @@ async def test_subscribe_kline_validates_interval(monkeypatch: pytest.MonkeyPatc
 
 @pytest.mark.asyncio
 async def test_subscribe_unknown_quote_type_raises() -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient())
     with pytest.raises(ValueError):
@@ -168,7 +168,7 @@ async def test_subscribe_unknown_quote_type_raises() -> None:
 
 @pytest.mark.asyncio
 async def test_subscribe_user_stream_skips_without_api_key() -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient(api_key=None))
     await q.subscribe_user_stream(lambda r: None)
@@ -178,7 +178,7 @@ async def test_subscribe_user_stream_skips_without_api_key() -> None:
 
 @pytest.mark.asyncio
 async def test_subscribe_user_stream_starts_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient(api_key="key123"))
     monkeypatch.setattr(Quote, "_create_listen_key", AsyncMock(return_value="LK_AAA"))
@@ -199,7 +199,7 @@ async def test_subscribe_user_stream_starts_tasks(monkeypatch: pytest.MonkeyPatc
 
 @pytest.mark.asyncio
 async def test_handle_user_event_routes_and_triggers_wait_fill() -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient(api_key="k"))
     received: list = []
@@ -225,8 +225,8 @@ async def test_handle_user_event_routes_and_triggers_wait_fill() -> None:
 
 @pytest.mark.asyncio
 async def test_wait_fill_returns_cached_terminal() -> None:
-    from lcz_binance_sdk._internal import ExecutionReport
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk._internal import ExecutionReport
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient(api_key="k"))
     q._execution_reports["7"] = ExecutionReport(
@@ -240,7 +240,7 @@ async def test_wait_fill_returns_cached_terminal() -> None:
 
 @pytest.mark.asyncio
 async def test_wait_fill_timeout_returns_none() -> None:
-    from lcz_binance_sdk.quote import Quote
+    from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient(api_key="k"))
     out = await q.wait_fill("does-not-exist", timeout=0.05)
@@ -255,7 +255,7 @@ async def test_wait_fill_timeout_returns_none() -> None:
 
 class TestDispatchBookTicker:
     def test_dispatch_book_ticker_happy_path(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list[tuple] = []
@@ -276,7 +276,7 @@ class TestDispatchBookTicker:
         assert ask_qty == 0.567
 
     def test_dispatch_book_ticker_skips_zero_bid(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -285,7 +285,7 @@ class TestDispatchBookTicker:
         assert received == []
 
     def test_dispatch_book_ticker_skips_zero_ask(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -294,7 +294,7 @@ class TestDispatchBookTicker:
         assert received == []
 
     def test_dispatch_book_ticker_parse_error_skipped(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -304,7 +304,7 @@ class TestDispatchBookTicker:
         assert received == []
 
     def test_dispatch_book_ticker_routes_to_correct_symbol(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         btc_received: list = []
@@ -316,7 +316,7 @@ class TestDispatchBookTicker:
         assert len(eth_received) == 0
 
     def test_dispatch_book_ticker_callback_exception_does_not_crash(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
 
@@ -328,7 +328,7 @@ class TestDispatchBookTicker:
         q._dispatch_book_ticker({"s": "BTCUSDT", "b": "50000", "a": "50001", "B": "1", "A": "1"})
 
     def test_dispatch_book_ticker_unparseable_floats_skipped(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -338,7 +338,7 @@ class TestDispatchBookTicker:
         assert received == []
 
     def test_dispatch_book_ticker_no_registered_symbol_is_noop(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         # No callback for SOLUSDT; must not raise / log noisily
@@ -348,7 +348,7 @@ class TestDispatchBookTicker:
 class TestDispatchKline:
     @pytest.mark.asyncio
     async def test_dispatch_kline_bar_dict_correct(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list[dict] = []
@@ -385,7 +385,7 @@ class TestDispatchKline:
     @pytest.mark.asyncio
     async def test_dispatch_kline_open_bar_skipped(self) -> None:
         """Open (not yet closed) bars are filtered out by _dispatch_kline."""
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -402,7 +402,7 @@ class TestDispatchKline:
 
     @pytest.mark.asyncio
     async def test_dispatch_kline_bad_payload_skipped(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -413,7 +413,7 @@ class TestDispatchKline:
 
     @pytest.mark.asyncio
     async def test_dispatch_kline_wrong_event_type_skipped(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -423,7 +423,7 @@ class TestDispatchKline:
 
     @pytest.mark.asyncio
     async def test_dispatch_kline_unregistered_pair_skipped(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         # Never registered (BTCUSDT, 5m); must not raise
@@ -438,7 +438,7 @@ class TestDispatchKline:
 
     @pytest.mark.asyncio
     async def test_dispatch_kline_async_callback_supported(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
         received: list = []
@@ -460,7 +460,7 @@ class TestDispatchKline:
 
     @pytest.mark.asyncio
     async def test_dispatch_kline_callback_exception_does_not_crash(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
 
@@ -488,7 +488,7 @@ class TestDispatchKline:
 
 class TestHandleUserEvent:
     def test_filled_triggers_event_and_calls_callbacks(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         received: list = []
@@ -513,7 +513,7 @@ class TestHandleUserEvent:
         assert event.is_set()
 
     def test_partially_filled_does_not_trigger_event(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         received: list = []
@@ -535,7 +535,7 @@ class TestHandleUserEvent:
         assert not event.is_set()  # non-terminal
 
     def test_canceled_triggers_event(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         event = asyncio.Event()
@@ -556,7 +556,7 @@ class TestHandleUserEvent:
         assert report.status == "CANCELED"
 
     def test_expired_triggers_event(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         event = asyncio.Event()
@@ -573,14 +573,14 @@ class TestHandleUserEvent:
         assert event.is_set()
 
     def test_parse_error_does_not_crash(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         # Missing required "i" -> parse error logged, no raise
         q._handle_user_event({"e": "executionReport", "s": "BTCUSDT", "X": "FILLED"})
 
     def test_wrong_event_type_skipped(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         event = asyncio.Event()
@@ -590,7 +590,7 @@ class TestHandleUserEvent:
         assert "111" not in q._execution_reports
 
     def test_stores_latest_report_in_dict(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         q._handle_user_event(
@@ -605,7 +605,7 @@ class TestHandleUserEvent:
         assert q._execution_reports["111"].status == "NEW"
 
     def test_callback_exception_does_not_crash(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         event = asyncio.Event()
@@ -630,7 +630,7 @@ class TestHandleUserEvent:
         assert event.is_set()
 
     def test_no_event_registered_does_not_raise(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
         # Terminal status without any wait_fill registered — must not raise
@@ -652,7 +652,7 @@ class TestHandleUserEvent:
 class TestWaitFillExtended:
     @pytest.mark.asyncio
     async def test_wait_fill_event_triggered(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
 
@@ -676,7 +676,7 @@ class TestWaitFillExtended:
 
     @pytest.mark.asyncio
     async def test_wait_fill_cleans_up_event_after_fill(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
 
@@ -697,7 +697,7 @@ class TestWaitFillExtended:
 
     @pytest.mark.asyncio
     async def test_wait_fill_canceled_order_returns_report(self) -> None:
-        from lcz_binance_sdk.quote import Quote
+        from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
 

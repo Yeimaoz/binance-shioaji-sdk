@@ -1,11 +1,11 @@
 """
-lcz-binance-sdk — Async Python SDK for Binance Futures.
+binance-shioaji-sdk — Async Python SDK for Binance Futures.
 
 Mirrors shioaji SDK shape (sj.Contracts.Futures / sj.Order / etc) for use by
 lcz-sentinel project.
 
 Public API:
-    from lcz_binance_sdk import BinanceClient
+    from binance_shioaji_sdk import BinanceClient
     bn = BinanceClient(testnet=False)
     await bn.login(api_key, secret_key)
     contract = bn.Contracts.Perp["BTCUSDT"]
@@ -18,13 +18,13 @@ Public API:
 
 __version__ = "0.2.1"
 
-from lcz_binance_sdk._internal.types import ExecutionReport
-from lcz_binance_sdk.account import BinanceAccount
-from lcz_binance_sdk.client import BinanceClient
-from lcz_binance_sdk.contracts import BinanceContract, Contracts
-from lcz_binance_sdk.market_info import MarketInfo
-from lcz_binance_sdk.order import Order, OrderResponse
-from lcz_binance_sdk.quote import Quote
+from binance_shioaji_sdk._internal.types import ExecutionReport
+from binance_shioaji_sdk.account import BinanceAccount
+from binance_shioaji_sdk.client import BinanceClient
+from binance_shioaji_sdk.contracts import BinanceContract, Contracts
+from binance_shioaji_sdk.market_info import MarketInfo
+from binance_shioaji_sdk.order import Order, OrderResponse
+from binance_shioaji_sdk.quote import Quote
 
 __all__ = [
     "BinanceClient",

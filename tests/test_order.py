@@ -1,4 +1,4 @@
-"""Tests for lcz_binance_sdk.order public API."""
+"""Tests for binance_shioaji_sdk.order public API."""
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
@@ -52,7 +52,7 @@ class _FakeRest:
 
 
 def test_order_dataclass_frozen() -> None:
-    from lcz_binance_sdk.order import Order
+    from binance_shioaji_sdk.order import Order
 
     o = Order(price=50000.0, quantity=1, action="long", price_type="LMT")
     assert o.price == 50000.0
@@ -63,7 +63,7 @@ def test_order_dataclass_frozen() -> None:
 
 
 def test_order_response_dataclass() -> None:
-    from lcz_binance_sdk.order import OrderResponse
+    from binance_shioaji_sdk.order import OrderResponse
 
     r = OrderResponse(
         order_id="123",
@@ -81,7 +81,7 @@ def test_order_response_dataclass() -> None:
 
 @pytest.mark.asyncio
 async def test_place_order_via_market_happy_path() -> None:
-    from lcz_binance_sdk.order import Order, place_order_via
+    from binance_shioaji_sdk.order import Order, place_order_via
 
     rest = _FakeRest()
     rest.queue(
@@ -114,7 +114,7 @@ async def test_place_order_via_market_happy_path() -> None:
 
 @pytest.mark.asyncio
 async def test_place_order_via_limit_carries_price_and_tif() -> None:
-    from lcz_binance_sdk.order import Order, place_order_via
+    from binance_shioaji_sdk.order import Order, place_order_via
 
     rest = _FakeRest()
     rest.queue(
@@ -147,7 +147,7 @@ async def test_place_order_via_limit_carries_price_and_tif() -> None:
 
 @pytest.mark.asyncio
 async def test_place_order_via_4xx_returns_rejected() -> None:
-    from lcz_binance_sdk.order import Order, place_order_via
+    from binance_shioaji_sdk.order import Order, place_order_via
 
     rest = _FakeRest()
     rest.queue("POST", "/fapi/v1/order", {"error": "HTTP 400", "detail": {"code": -2010}})
@@ -162,7 +162,7 @@ async def test_place_order_via_4xx_returns_rejected() -> None:
 
 @pytest.mark.asyncio
 async def test_place_order_via_invalid_args_raise() -> None:
-    from lcz_binance_sdk.order import Order, place_order_via
+    from binance_shioaji_sdk.order import Order, place_order_via
 
     rest = _FakeRest()
     bad_action = Order(price=0, quantity=1, action="buy", price_type="MKT")  # type: ignore[arg-type]
@@ -180,7 +180,7 @@ async def test_place_order_via_invalid_args_raise() -> None:
 
 @pytest.mark.asyncio
 async def test_cancel_order_via() -> None:
-    from lcz_binance_sdk.order import cancel_order_via
+    from binance_shioaji_sdk.order import cancel_order_via
 
     rest = _FakeRest()
     rest.queue("DELETE", "/fapi/v1/order", {"status": "CANCELED"})
@@ -199,7 +199,7 @@ async def test_cancel_order_via() -> None:
 
 @pytest.mark.asyncio
 async def test_list_trades_via_requires_symbol_and_parses() -> None:
-    from lcz_binance_sdk.order import list_trades_via
+    from binance_shioaji_sdk.order import list_trades_via
 
     rest = _FakeRest()
     # No symbol -> [] without REST call
@@ -226,7 +226,7 @@ async def test_list_trades_via_requires_symbol_and_parses() -> None:
 
 @pytest.mark.asyncio
 async def test_list_trades_via_handles_error_payload() -> None:
-    from lcz_binance_sdk.order import list_trades_via
+    from binance_shioaji_sdk.order import list_trades_via
 
     rest = _FakeRest()
     rest.queue("GET", "/fapi/v1/allOrders", {"error": "HTTP 401"})

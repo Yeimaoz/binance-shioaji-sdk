@@ -1,7 +1,7 @@
 [project]
-name = "lcz-binance-sdk"
+name = "binance-shioaji-sdk"
 version = "0.2.1"
-description = "Async Python SDK for Binance Futures (lcz-sentinel internal, mirrors shioaji SDK shape)"
+description = "Async Python SDK for Binance Futures with shioaji-style API. Drop-in for quants migrating between TW (shioaji) and crypto markets."
 authors = [{name = "Li-Cheng Zheng", email = "2vry47bxz5@privaterelay.appleid.com"}]
 license = {text = "Apache-2.0"}
 readme = "README.md"
@@ -30,5 +30,5 @@ python_version = "3.12"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "lcz_binance_sdk._internal.ws_manager"
+module = "binance_shioaji_sdk._internal.ws_manager"
 disable_error_code = ["misc"]

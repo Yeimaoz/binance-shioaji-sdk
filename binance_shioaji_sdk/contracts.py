@@ -1,5 +1,5 @@
 """
-lcz_binance_sdk/contracts.py — Binance contract specifications
+binance_shioaji_sdk/contracts.py — Binance contract specifications
 ==============================================================
 
 Mirrors shioaji `sj.Contracts.Futures.<key>` dot-access shape:
@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
-    from lcz_binance_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import BinanceClient
 
 
 @dataclass(frozen=True)

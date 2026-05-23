@@ -1,5 +1,5 @@
 """
-lcz_binance_sdk/order.py - Order public API
+binance_shioaji_sdk/order.py - Order public API
 ===========================================
 
 Mirrors shioaji `sj.Order` shape: a frozen dataclass describing the order
@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from lcz_binance_sdk.contracts import BinanceContract
-    from lcz_binance_sdk._internal import BinanceRestClient
+    from binance_shioaji_sdk.contracts import BinanceContract
+    from binance_shioaji_sdk._internal import BinanceRestClient
 
 
 # ---------------------------------------------------------------------------

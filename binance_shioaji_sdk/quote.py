@@ -1,5 +1,5 @@
 """
-lcz_binance_sdk/quote.py - Quote namespace (WS multiplexing)
+binance_shioaji_sdk/quote.py - Quote namespace (WS multiplexing)
 ============================================================
 
 Mirrors shioaji `sj.quote.subscribe(contract, quote_type, callback)` shape.
@@ -24,7 +24,7 @@ import inspect
 import logging
 from typing import TYPE_CHECKING, Any, Callable
 
-from lcz_binance_sdk._internal import (
+from binance_shioaji_sdk._internal import (
     BinanceWSManager,
     ExecutionReport,
     LISTEN_KEY_KEEPALIVE_INTERVAL,
@@ -32,8 +32,8 @@ from lcz_binance_sdk._internal import (
 )
 
 if TYPE_CHECKING:
-    from lcz_binance_sdk.client import BinanceClient
-    from lcz_binance_sdk.contracts import BinanceContract
+    from binance_shioaji_sdk.client import BinanceClient
+    from binance_shioaji_sdk.contracts import BinanceContract
 
 logger = logging.getLogger(__name__)
 

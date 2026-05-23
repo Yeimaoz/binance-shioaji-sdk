@@ -1,37 +1,66 @@
-# lcz-binance-sdk
+# binance-shioaji-sdk
 
-Async Python SDK for Binance Futures, mirroring shioaji SDK shape.
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-> **Status**: Early stage (v0.0.x). Internal use for lcz-sentinel project.
+Async Python SDK for Binance USDM-M Futures, **mirroring the [shioaji](https://github.com/Sinopac-Innovation/Shioaji) SDK API shape**.
+
+If you already trade 台股期貨 via shioaji (永豐金), this gives you Binance crypto with the **exact same API surface** — same `Contracts.Perp["BTCUSDT"]`, same `Order(action="long")`, same `place_order()`. Switch contracts, keep your strategy code.
+
+## Why this vs `python-binance` / `binance-connector`?
+
+| | python-binance | binance-connector | **binance-shioaji-sdk** |
+|---|---|---|---|
+| API shape | Binance-native | Binance-native | **shioaji-mirrored** |
+| Async | partial | sync-only | **async-first** |
+| TW quant familiar | ❌ | ❌ | **✅** |
+| Code reuse with shioaji strategies | ❌ | ❌ | **✅** |
+
+Pick this if you have shioaji muscle memory and want zero-friction crypto execution.
 
 ## Install
 
 ```bash
-# Editable install during dev:
-pip install -e /path/to/lcz-binance-sdk
-
-# Git URL pin (for stable use):
-pip install git+https://github.com/Yeimaoz/lcz-binance-sdk.git@v0.1.0
+pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.2.1
 ```
 
-## Quick Start
+## Quickstart
 
 ```python
-from lcz_binance_sdk import BinanceClient
+import asyncio
+from binance_shioaji_sdk import BinanceClient
 
-bn = BinanceClient(testnet=True)
-await bn.login(api_key="...", secret_key="...")
+async def main():
+    bn = BinanceClient(testnet=True)
+    await bn.login(api_key="...", secret_key="...")
 
-contract = bn.Contracts.Perp["BTCUSDT"]
-order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
-resp = await bn.place_order(contract, order)
+    # Identical to shioaji's api.Contracts.Futures[...] pattern
+    contract = bn.Contracts.Perp["BTCUSDT"]
+
+    # Same Order construction
+    order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
+    resp = await bn.place_order(contract, order)
+    print(resp)
+
+asyncio.run(main())
 ```
 
 ## Design philosophy
 
-Mirrors shioaji SDK API shape (sj.Contracts.Futures.X / sj.place_order / sj.Order / etc) so lcz-sentinel can use uniform adapter pattern across vendors.
+This SDK exists so that one strategy file can work across **TW futures (via shioaji)** and **Binance perps (via this lib)** without rewriting order / contract / quote glue code. The internal Binance REST + WebSocket implementation is hidden behind a shioaji-shaped facade.
 
-See `python/docs/standards/binance_sdk_design.md` in lcz-sentinel for full design study.
+## Status
+
+`v0.2.x` — Working for testnet + mainnet futures. Login, contracts, market info, quotes, orders, account, async WS streaming.
+
+Not yet implemented (open to PRs):
+- Spot trading (futures-first for now)
+- Sub-account / portfolio margin
+- Options
+
+## Contributing
+
+Issues + PRs welcome. The API contract is **shioaji parity**: if shioaji has `api.foo(...)`, this should provide `bn.foo(...)` with semantically equivalent behaviour where it makes sense for crypto futures.
 
 ## License
 

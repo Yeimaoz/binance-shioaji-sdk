@@ -1,5 +1,5 @@
 """
-lcz_binance_sdk/client.py — BinanceClient top-level entry
+binance_shioaji_sdk/client.py — BinanceClient top-level entry
 
 Mirrors shioaji `sj.Shioaji(simulation=...)` shape:
     bn = BinanceClient(testnet=False)
@@ -17,22 +17,22 @@ import asyncio
 import logging
 from typing import Any, Callable, Optional
 
-from lcz_binance_sdk._internal import (
+from binance_shioaji_sdk._internal import (
     BinanceRestClient,
     BinanceWSManager,
     LISTEN_KEY_KEEPALIVE_INTERVAL,
 )
-from lcz_binance_sdk.account import BinanceAccount
-from lcz_binance_sdk.contracts import BinanceContract, Contracts
-from lcz_binance_sdk.market_info import MarketInfo
-from lcz_binance_sdk.order import (
+from binance_shioaji_sdk.account import BinanceAccount
+from binance_shioaji_sdk.contracts import BinanceContract, Contracts
+from binance_shioaji_sdk.market_info import MarketInfo
+from binance_shioaji_sdk.order import (
     Order as _Order,
     OrderResponse,
     cancel_order_via,
     list_trades_via,
     place_order_via,
 )
-from lcz_binance_sdk.quote import Quote
+from binance_shioaji_sdk.quote import Quote
 
 logger = logging.getLogger(__name__)
 

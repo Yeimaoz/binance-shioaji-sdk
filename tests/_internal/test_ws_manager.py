@@ -1,4 +1,4 @@
-"""Tests for lcz_binance_sdk._internal.ws_manager.
+"""Tests for binance_shioaji_sdk._internal.ws_manager.
 
 Covers BinanceWSManager.create_listen_key / keepalive_listen_key REST
 interactions, plus reconnect / stop_event behaviour of run_combined_stream
@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
-from lcz_binance_sdk._internal import (
+from binance_shioaji_sdk._internal import (
     BinanceWSManager,
     LISTEN_KEY_KEEPALIVE_INTERVAL,
     VALID_KLINE_INTERVALS,

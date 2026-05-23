@@ -2,7 +2,7 @@
 binance_sdk/_internal/types.py — internal dataclasses shared by BinanceRestClient / BinanceWSManager
 ====================================================================================================
 
-Step 1 of Binance SDK mirror design (see ~/.claude/plans/lcz-sentinel-20260503-binance-sdk-mirror-design-study.md §5/§6).
+Step 1 of Binance SDK mirror design (internal design study§6).
 
 Public API stability：本 module 為 _internal，不對外公開。
 broker_binance.py 仍 re-export ExecutionReport，public 介面不變。

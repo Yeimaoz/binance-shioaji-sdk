@@ -248,8 +248,8 @@ async def test_wait_fill_timeout_returns_none() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Migrated from lcz-sentinel TestSubscribeBookTicker / TestSubscribeBars
-# (dispatch-only behaviour — adapter wiring tests stay in lcz-sentinel)
+# Migrated from upstream TestSubscribeBookTicker / TestSubscribeBars
+# (dispatch-only behaviour — adapter wiring tests stay in the parent project)
 # ---------------------------------------------------------------------------
 
 
@@ -479,8 +479,8 @@ class TestDispatchKline:
 
 
 # ---------------------------------------------------------------------------
-# Migrated from lcz-sentinel TestExecutionReport (handler logic)
-# Note: lcz-sentinel adapter calls this `_handle_execution_report`; SDK
+# Migrated from upstream TestExecutionReport (handler logic)
+# Note: an upstream broker adapter calls this `_handle_execution_report`; SDK
 # Quote names it `_handle_user_event` and parses the same executionReport
 # shape into ExecutionReport.
 # ---------------------------------------------------------------------------
@@ -645,7 +645,7 @@ class TestHandleUserEvent:
 
 
 # ---------------------------------------------------------------------------
-# Migrated from lcz-sentinel TestWaitFill — terminal-state rendezvous
+# Migrated from upstream TestWaitFill — terminal-state rendezvous
 # ---------------------------------------------------------------------------
 
 

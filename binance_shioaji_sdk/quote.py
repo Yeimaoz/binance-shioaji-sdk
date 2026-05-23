@@ -13,7 +13,7 @@ channel type:
     quote_type='kline_1m' / 'kline_5m' / ...  ->  <symbol>@kline_<iv> (WS task 3)
     user data stream                   ->  ws://<listenKey>    (WS task 4)
 
-Logic adapted from lcz-sentinel `python/lib/broker_binance.py`
+Logic adapted from an upstream shioaji-style broker adapter
 (`subscribe_tick` / `subscribe_book_ticker` / `subscribe_kline` /
 `subscribe_user_stream` / `wait_fill` / `_handle_execution_report`).
 """

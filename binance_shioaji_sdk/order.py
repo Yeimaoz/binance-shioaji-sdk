@@ -11,7 +11,7 @@ This module also exposes module-level helpers (`place_order_via`,
 and accept an injected `rest_client`. The wire-in to `BinanceClient`
 methods lands in a follow-up PR.
 
-Logic adapted from lcz-sentinel `python/lib/broker_binance.py`
+Logic adapted from an upstream shioaji-style broker adapter
 (`place_order` / `cancel_order`).
 """
 from __future__ import annotations
@@ -57,7 +57,7 @@ class Order:
 class OrderResponse:
     """Wrap broker ack into a stable shape.
 
-    Mirrors lcz-sentinel `OrderAck` but extends with `client_order_id` and
+    Mirrors an upstream broker adapter `OrderAck` but extends with `client_order_id` and
     `filled_quantity` for parity with shioaji's `Trade`.
     """
 

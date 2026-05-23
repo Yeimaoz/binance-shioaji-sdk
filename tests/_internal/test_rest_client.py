@@ -1,7 +1,7 @@
 """Tests for binance_shioaji_sdk._internal.rest_client.
 
 Covers sign_request (HMAC-SHA256), BinanceRestClient HTTP methods (GET/POST/DELETE),
-and _TokenBucket rate-limiting. Mirrors lcz-sentinel adapter test_broker_binance.py
+and _TokenBucket rate-limiting. Mirrors an upstream adapter test suite
 TestSign / TestHttpMethods / TestTokenBucket migrated to SDK internals.
 """
 from __future__ import annotations
@@ -77,7 +77,7 @@ def test_execution_report_dataclass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# sign_request (was BinanceAdapter._sign in lcz-sentinel)
+# sign_request (was BinanceAdapter._sign in the parent project)
 # ---------------------------------------------------------------------------
 
 

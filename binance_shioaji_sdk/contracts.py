@@ -9,8 +9,7 @@ v0.1: hardcoded registry of 5 commonly-used USDM perpetuals
       (BTCUSDT / ETHUSDT / SOLUSDT / BNBUSDT / XRPUSDT).
 v0.2: dynamic /fapi/v1/exchangeInfo refresh.
 
-數值來源：lcz-sentinel python/lib/contracts_crypto.py + Binance USDM exchangeInfo
-（截至 2026-05）。Spot 留 v0.2。
+數值來源：Binance USDM exchangeInfo（截至 2026-05）。Spot 留 v0.2。
 """
 from __future__ import annotations
 
@@ -54,8 +53,7 @@ class BinanceContract:
 # ---------------------------------------------------------------------------
 
 # Keyed by market_type; each maps symbol -> BinanceContract.
-# tick_size / step_size 對齊 lcz-sentinel/lib/contracts_crypto.py 既有值；
-# SOLUSDT / BNBUSDT 取自 Binance USDM exchangeInfo (2026-05)。
+# tick_size / step_size / SOLUSDT / BNBUSDT 取自 Binance USDM exchangeInfo (2026-05)。
 _PERP_REGISTRY: dict[str, BinanceContract] = {
     "BTCUSDT": BinanceContract(
         symbol="BTCUSDT",

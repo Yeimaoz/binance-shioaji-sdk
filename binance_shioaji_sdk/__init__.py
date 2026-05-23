@@ -2,7 +2,7 @@
 binance-shioaji-sdk — Async Python SDK for Binance Futures.
 
 Mirrors shioaji SDK shape (sj.Contracts.Futures / sj.Order / etc) for use by
-lcz-sentinel project.
+parent project.
 
 Public API:
     from binance_shioaji_sdk import BinanceClient

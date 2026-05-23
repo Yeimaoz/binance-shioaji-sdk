@@ -109,9 +109,9 @@ async def test_funding_rate_history_returns_empty_on_error() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Migrated from lcz-sentinel TestFundingRate / TestFundingRateHistory /
+# Migrated from upstream TestFundingRate / TestFundingRateHistory /
 # TestGetOpenInterest (endpoint behavior — Protocol contract layer stays
-# in lcz-sentinel adapter test).
+# in an upstream broker adapter test).
 # ---------------------------------------------------------------------------
 
 

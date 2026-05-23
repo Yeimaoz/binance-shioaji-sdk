@@ -2,7 +2,7 @@
 
 Covers BinanceWSManager.create_listen_key / keepalive_listen_key REST
 interactions, plus reconnect / stop_event behaviour of run_combined_stream
-and run_user_stream loops. Mirrors lcz-sentinel adapter
+and run_user_stream loops. Mirrors an upstream broker adapter
 TestSubscribeUserStream._create_listen_key / _listen_key_keepalive_loop /
 _ws_user_stream_loop migrated to SDK internals.
 """

@@ -2,7 +2,7 @@
 binance_shioaji_sdk/market_info.py - MarketInfo namespace (crypto-only)
 ===================================================================
 
-Mirrors the lcz-sentinel `BinanceAdapter.get_funding_rate` /
+Mirrors an upstream shioaji-style broker adapter's `get_funding_rate` /
 `get_funding_rate_history` / `get_open_interest` surface, packaged as a
 crypto-only namespace (shioaji has no equivalent).
 

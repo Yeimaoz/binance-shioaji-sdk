@@ -12,6 +12,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+class BinanceAuthError(Exception):
+    """Raised when Binance REST endpoint returns 401 or 403.
+
+    Distinguishes authentication failure (bad credentials) from transient
+    errors (5xx / network). Used so callers like ``BinanceClient.login()``
+    can fail fast on bad keys instead of returning a half-connected client.
+    """
+
+
 @dataclass
 class ExecutionReport:
     """Binance executionReport 事件的結構化表示。

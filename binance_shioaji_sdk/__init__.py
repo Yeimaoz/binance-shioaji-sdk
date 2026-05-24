@@ -18,7 +18,7 @@ Public API:
 
 __version__ = "0.2.1"
 
-from binance_shioaji_sdk._internal.types import ExecutionReport
+from binance_shioaji_sdk._internal.types import BinanceAuthError, ExecutionReport
 from binance_shioaji_sdk.account import BinanceAccount
 from binance_shioaji_sdk.client import BinanceClient
 from binance_shioaji_sdk.contracts import BinanceContract, Contracts
@@ -27,6 +27,7 @@ from binance_shioaji_sdk.order import Order, OrderResponse
 from binance_shioaji_sdk.quote import Quote
 
 __all__ = [
+    "BinanceAuthError",
     "BinanceClient",
     "BinanceAccount",
     "BinanceContract",

@@ -12,8 +12,10 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
+import pytest
 
 from binance_shioaji_sdk._internal import (
+    BinanceAuthError,
     BinanceWSManager,
     LISTEN_KEY_KEEPALIVE_INTERVAL,
     VALID_KLINE_INTERVALS,
@@ -132,10 +134,33 @@ class TestCreateListenKey:
         assert call_args.args[0] == "https://fapi.binance.com/fapi/v1/listenKey"
         assert call_args.kwargs["headers"] == {"X-MBX-APIKEY": "api_key_xxx"}
 
-    async def test_http_error_returns_none(self, make_response) -> None:
+    async def test_http_401_raises_auth_error(self, make_response) -> None:
+        """401 = credentials rejected; fail fast, not silent None."""
         client = MagicMock()
         client.post = AsyncMock(
             return_value=make_response(401, {"code": -2014, "msg": "API-key format invalid"})
+        )
+        with pytest.raises(BinanceAuthError, match="HTTP 401"):
+            await BinanceWSManager.create_listen_key(
+                client, "api_key", "https://fapi.binance.com"
+            )
+
+    async def test_http_403_raises_auth_error(self, make_response) -> None:
+        """403 = credentials forbidden (e.g. wrong permission / IP); fail fast."""
+        client = MagicMock()
+        client.post = AsyncMock(
+            return_value=make_response(403, {"code": -2015, "msg": "Invalid API-key, IP, or permissions"})
+        )
+        with pytest.raises(BinanceAuthError, match="HTTP 403"):
+            await BinanceWSManager.create_listen_key(
+                client, "api_key", "https://fapi.binance.com"
+            )
+
+    async def test_http_5xx_returns_none(self, make_response) -> None:
+        """Transient server error stays best-effort: log + None (caller proceeds)."""
+        client = MagicMock()
+        client.post = AsyncMock(
+            return_value=make_response(503, {"code": -1, "msg": "Service Unavailable"})
         )
         key = await BinanceWSManager.create_listen_key(
             client, "api_key", "https://fapi.binance.com"

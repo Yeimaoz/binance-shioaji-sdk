@@ -8,7 +8,7 @@ the broker ack.
 
 This module also exposes module-level helpers (`place_order_via`,
 `cancel_order_via`, `list_trades_via`) that contain the actual REST logic
-and accept an injected `rest_client`. The wire-in to `BinanceClient`
+and accept an injected `rest_client`. The wire-in to `Binance`
 methods lands in a follow-up PR.
 
 Logic adapted from an upstream shioaji-style broker adapter
@@ -87,7 +87,7 @@ def _normalize_symbol(raw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Module-level helpers (called by BinanceClient methods in wire-in PR)
+# Module-level helpers (called by Binance methods in wire-in PR)
 # ---------------------------------------------------------------------------
 
 

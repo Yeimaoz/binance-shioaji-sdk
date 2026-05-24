@@ -16,7 +16,7 @@ class BinanceAuthError(Exception):
     """Raised when Binance REST endpoint returns 401 or 403.
 
     Distinguishes authentication failure (bad credentials) from transient
-    errors (5xx / network). Used so callers like ``BinanceClient.login()``
+    errors (5xx / network). Used so callers like ``Binance.login()``
     can fail fast on bad keys instead of returning a half-connected client.
     """
 

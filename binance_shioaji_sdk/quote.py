@@ -4,7 +4,7 @@ binance_shioaji_sdk/quote.py - Quote namespace (WS multiplexing)
 
 Mirrors shioaji `sj.quote.subscribe(contract, quote_type, callback)` shape.
 
-A `Quote` instance lives on `BinanceClient.quote` (wired in by follow-up PR)
+A `Quote` instance lives on `Binance.quote` (wired in by follow-up PR)
 and multiplexes four logical WS channels through one combined-stream task per
 channel type:
 
@@ -32,7 +32,7 @@ from binance_shioaji_sdk._internal import (
 )
 
 if TYPE_CHECKING:
-    from binance_shioaji_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import Binance
     from binance_shioaji_sdk.contracts import BinanceContract
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def _kline_interval(quote_type: str) -> str | None:
 class Quote:
     """Binance quote namespace, mirrors shioaji `sj.quote`.
 
-    Attach via `BinanceClient.quote = Quote(self)` (wire-in deferred).
+    Attach via `Binance.quote = Quote(self)` (wire-in deferred).
 
     Public surface:
         set_on_tick_callback(cb)        -- global tick callback (parity with shioaji)
@@ -83,7 +83,7 @@ class Quote:
         _fill_events          : order_id -> asyncio.Event (wait_fill rendezvous)
     """
 
-    def __init__(self, client: "BinanceClient") -> None:
+    def __init__(self, client: "Binance") -> None:
         self._client = client
 
         # Per-channel callback registries
@@ -431,11 +431,11 @@ class Quote:
         return await BinanceWSManager.create_listen_key(rest, api_key, base_url)
 
     def _get_rest_inner_httpx(self) -> Any | None:
-        """Return the inner httpx.AsyncClient owned by the BinanceClient.
+        """Return the inner httpx.AsyncClient owned by the Binance.
 
-        BinanceClient (built by agent A) holds a `BinanceRestClient` exposing
+        Binance (built by agent A) holds a `BinanceRestClient` exposing
         `._client` once `connect()` ran. We tolerate both
-        `BinanceClient._rest` and `.rest` attribute names.
+        `Binance._rest` and `.rest` attribute names.
         """
         rest_client = getattr(self._client, "_rest", None) or getattr(
             self._client, "rest", None

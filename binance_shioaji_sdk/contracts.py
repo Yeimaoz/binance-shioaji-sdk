@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
-    from binance_shioaji_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import Binance
 
 
 @dataclass(frozen=True)
@@ -106,7 +106,7 @@ _PERP_REGISTRY: dict[str, BinanceContract] = {
 class _ContractsNamespace:
     """Dict-like namespace for one market_type (e.g. Perp)."""
 
-    def __init__(self, client: "BinanceClient", market_type: str) -> None:
+    def __init__(self, client: "Binance", market_type: str) -> None:
         self._client = client
         self._market_type = market_type
         if market_type == "perp":
@@ -152,6 +152,6 @@ class Contracts:
     Spot lookup arrives in v0.2.
     """
 
-    def __init__(self, client: "BinanceClient") -> None:
+    def __init__(self, client: "Binance") -> None:
         self.Perp = _ContractsNamespace(client, "perp")
         # Spot: v0.2

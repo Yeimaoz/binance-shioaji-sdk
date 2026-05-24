@@ -6,7 +6,7 @@ Mirrors an upstream shioaji-style broker adapter's `get_funding_rate` /
 `get_funding_rate_history` / `get_open_interest` surface, packaged as a
 crypto-only namespace (shioaji has no equivalent).
 
-A `MarketInfo` instance lives on `BinanceClient.market_info` (wired in by
+A `MarketInfo` instance lives on `Binance.market_info` (wired in by
 follow-up PR).
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from binance_shioaji_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import Binance
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class MarketInfo:
         await open_interest(symbol) -> dict
     """
 
-    def __init__(self, client: "BinanceClient") -> None:
+    def __init__(self, client: "Binance") -> None:
         self._client = client
 
     # ── helpers ──────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ class MarketInfo:
         )
         if rest is None:
             raise RuntimeError(
-                "[MarketInfo] BinanceClient missing rest client; "
+                "[MarketInfo] Binance missing rest client; "
                 "call client.connect() first"
             )
         return rest

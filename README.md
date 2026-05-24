@@ -28,18 +28,18 @@ pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.2.1
 
 ```python
 import asyncio
-from binance_shioaji_sdk import BinanceClient
+from binance_shioaji_sdk import Binance
 
 async def main():
-    bn = BinanceClient(testnet=True)
-    await bn.login(api_key="...", secret_key="...")
+    api = Binance(testnet=True)
+    await api.login(api_key="...", secret_key="...")
 
     # Identical to shioaji's api.Contracts.Futures[...] pattern
-    contract = bn.Contracts.Perp["BTCUSDT"]
+    contract = api.Contracts.Perp["BTCUSDT"]
 
     # Same Order construction
-    order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
-    resp = await bn.place_order(contract, order)
+    order = api.Order(price=50000, quantity=1, action="long", price_type="LMT")
+    resp = await api.place_order(contract, order)
     print(resp)
 
 asyncio.run(main())

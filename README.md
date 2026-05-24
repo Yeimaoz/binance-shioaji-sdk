@@ -21,7 +21,7 @@ Pick this if you have shioaji muscle memory and want zero-friction crypto execut
 ## Install
 
 ```bash
-pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.2.1
+pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.3.0
 ```
 
 ## Quickstart

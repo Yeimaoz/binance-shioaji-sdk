@@ -1,8 +1,8 @@
 """
-binance_shioaji_sdk/client.py — BinanceClient top-level entry
+binance_shioaji_sdk/client.py — Binance top-level entry
 
 Mirrors shioaji `sj.Shioaji(simulation=...)` shape:
-    bn = BinanceClient(testnet=False)
+    bn = Binance(testnet=False)
     await bn.login(api_key, secret_key)
     contract = bn.Contracts.Perp["BTCUSDT"]
     order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
@@ -47,15 +47,15 @@ BINANCE_WS_TESTNET = "wss://stream.binancefuture.com"
 
 
 # ---------------------------------------------------------------------------
-# BinanceClient
+# Binance
 # ---------------------------------------------------------------------------
 
 
-class BinanceClient:
+class Binance:
     """Binance Futures SDK top-level client.
 
     Lifecycle:
-        bn = BinanceClient(testnet=True)
+        bn = Binance(testnet=True)
         await bn.login(api_key, secret_key)
         ...
         await bn.logout()
@@ -95,7 +95,7 @@ class BinanceClient:
         # Hooks
         self.on_session_down: Optional[Callable[[], None]] = None
 
-        logger.debug("[BinanceClient] init testnet=%s", testnet)
+        logger.debug("[Binance] init testnet=%s", testnet)
 
     # ── Account property ─────────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ class BinanceClient:
         first; calling with new keys swaps credentials but keeps the connection.
         """
         if not api_key or not secret_key:
-            raise ValueError("[BinanceClient] api_key / secret_key 皆必填。")
+            raise ValueError("[Binance] api_key / secret_key 皆必填。")
 
         self.api_key = api_key
         self.secret_key = secret_key
@@ -154,7 +154,7 @@ class BinanceClient:
             self._listen_key_task = asyncio.create_task(self._listen_key_keepalive_loop())
 
         self._connected = True
-        logger.info("[BinanceClient] login OK (testnet=%s)", self.testnet)
+        logger.info("[Binance] login OK (testnet=%s)", self.testnet)
 
     async def logout(self) -> None:
         """Stop keepalive, close REST. Idempotent."""
@@ -173,7 +173,7 @@ class BinanceClient:
 
         self._ws = None
         self._connected = False
-        logger.info("[BinanceClient] logout OK")
+        logger.info("[Binance] logout OK")
 
     # ── Private: listenKey lifecycle ─────────────────────────────────────
 
@@ -206,13 +206,13 @@ class BinanceClient:
                     client, self.api_key, self._listen_key, self._base_url
                 )
                 if not ok:
-                    logger.warning("[BinanceClient] listenKey keepalive failed; clearing")
+                    logger.warning("[Binance] listenKey keepalive failed; clearing")
                     self._listen_key = None
                     if self.on_session_down is not None:
                         try:
                             self.on_session_down()
                         except Exception as exc:  # noqa: BLE001
-                            logger.error("[BinanceClient] on_session_down hook raised: %s", exc)
+                            logger.error("[Binance] on_session_down hook raised: %s", exc)
         except asyncio.CancelledError:
             return
 
@@ -232,13 +232,13 @@ class BinanceClient:
         """
         if account.account_type != "futures":
             raise ValueError(
-                f"[BinanceClient] list_positions: only 'futures' supported, "
+                f"[Binance] list_positions: only 'futures' supported, "
                 f"got account_type={account.account_type!r}"
             )
         rest = self._require_rest()
         raw = await rest.get("/fapi/v2/positionRisk", signed=True)
         if isinstance(raw, dict) and "error" in raw:
-            logger.warning("[BinanceClient] list_positions failed: %s", raw)
+            logger.warning("[Binance] list_positions failed: %s", raw)
             return []
         if not isinstance(raw, list):
             return []
@@ -266,7 +266,7 @@ class BinanceClient:
         rest = self._require_rest()
         raw = await rest.get("/fapi/v2/balance", signed=True)
         if isinstance(raw, dict) and "error" in raw:
-            logger.warning("[BinanceClient] account_balance failed: %s", raw)
+            logger.warning("[Binance] account_balance failed: %s", raw)
             return {
                 "equity": 0.0,
                 "available": 0.0,
@@ -312,6 +312,6 @@ class BinanceClient:
     def _require_rest(self) -> BinanceRestClient:
         if self._rest is None or not self._connected:
             raise RuntimeError(
-                "[BinanceClient] not logged in; call await bn.login(api_key, secret_key) first."
+                "[Binance] not logged in; call await bn.login(api_key, secret_key) first."
             )
         return self._rest

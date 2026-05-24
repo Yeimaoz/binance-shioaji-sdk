@@ -13,7 +13,7 @@ class _FakeContract:
 
 
 class _FakeClient:
-    """Stub BinanceClient: only what Quote needs."""
+    """Stub Binance: only what Quote needs."""
 
     def __init__(
         self,

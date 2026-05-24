@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from binance_shioaji_sdk.client import BinanceClient
+    from binance_shioaji_sdk.client import Binance
 
 
 @dataclass(frozen=True)
@@ -30,11 +30,11 @@ class BinanceAccount:
 
     Attributes
     ----------
-    client_ref   : owning BinanceClient (so account_id can derive from key)
+    client_ref   : owning Binance (so account_id can derive from key)
     account_type : "futures" (v0.1 only); "spot" / "delivery" reserved.
     """
 
-    client_ref: "BinanceClient"
+    client_ref: "Binance"
     account_type: str = "futures"
 
     @property

@@ -32,7 +32,7 @@ from binance_shioaji_sdk._internal import (
 def test_public_top_level_imports() -> None:
     from binance_shioaji_sdk import (
         BinanceAccount,
-        BinanceClient,
+        Binance,
         BinanceContract,
         Contracts,
         ExecutionReport,
@@ -45,7 +45,7 @@ def test_public_top_level_imports() -> None:
 
     # New v0.2.x release once PR-X1 lands; allow either tag.
     assert __version__.startswith("0.")
-    for cls in (BinanceClient, BinanceAccount, BinanceContract, Contracts,
+    for cls in (Binance, BinanceAccount, BinanceContract, Contracts,
                 Order, OrderResponse, Quote, MarketInfo, ExecutionReport):
         assert cls is not None
 

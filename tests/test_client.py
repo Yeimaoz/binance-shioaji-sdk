@@ -1,4 +1,4 @@
-"""Tests for binance_shioaji_sdk.client.BinanceClient.
+"""Tests for binance_shioaji_sdk.client.Binance.
 
 Covers: testnet base_url switching, login/logout state, placeholder
 NotImplementedError surface, on_session_down hook assignability.
@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from binance_shioaji_sdk import BinanceAccount, BinanceClient
+from binance_shioaji_sdk import BinanceAccount, Binance
 from binance_shioaji_sdk.client import (
     BINANCE_FUTURES_BASE,
     BINANCE_FUTURES_TESTNET,
@@ -21,8 +21,8 @@ from binance_shioaji_sdk.client import (
 
 
 def test_testnet_flag_swaps_base_url() -> None:
-    bn_test = BinanceClient(testnet=True)
-    bn_prod = BinanceClient(testnet=False)
+    bn_test = Binance(testnet=True)
+    bn_prod = Binance(testnet=False)
     assert bn_test.base_url == BINANCE_FUTURES_TESTNET
     assert "testnet" in bn_test.base_url
     assert bn_prod.base_url == BINANCE_FUTURES_BASE
@@ -31,13 +31,13 @@ def test_testnet_flag_swaps_base_url() -> None:
 
 
 def test_is_connected_false_before_login() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     assert bn.is_connected is False
 
 
 @pytest.mark.asyncio
 async def test_login_sets_connected_true_and_logout_resets() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
 
     with patch(
         "binance_shioaji_sdk.client.BinanceWSManager.create_listen_key",
@@ -68,7 +68,7 @@ async def test_login_sets_connected_true_and_logout_resets() -> None:
 
 @pytest.mark.asyncio
 async def test_login_rejects_empty_credentials() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     with pytest.raises(ValueError):
         await bn.login("", "secret")
     with pytest.raises(ValueError):
@@ -84,7 +84,7 @@ async def test_login_raises_auth_error_on_bad_credentials() -> None:
     """
     from binance_shioaji_sdk import BinanceAuthError
 
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
 
     async def _raise_auth(*_args, **_kwargs):
         raise BinanceAuthError("POST /fapi/v1/listenKey HTTP 401 — credentials rejected by Binance")
@@ -111,7 +111,7 @@ async def test_login_raises_auth_error_on_bad_credentials() -> None:
 @pytest.mark.asyncio
 async def test_order_methods_require_login() -> None:
     """Wire-in: place_order/cancel_order/list_trades raise RuntimeError when not logged in."""
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     contract = bn.Contracts.Perp["BTCUSDT"]
     order = bn.Order(price=50000, quantity=1, action="long", price_type="LMT")
     with pytest.raises(RuntimeError, match="not logged in"):
@@ -123,8 +123,8 @@ async def test_order_methods_require_login() -> None:
 
 
 def test_quote_marketinfo_namespaces_wired() -> None:
-    """Wire-in: quote / market_info / Order all live and callable from BinanceClient."""
-    bn = BinanceClient(testnet=True)
+    """Wire-in: quote / market_info / Order all live and callable from Binance."""
+    bn = Binance(testnet=True)
     from binance_shioaji_sdk import MarketInfo, Order, Quote
     assert isinstance(bn.quote, Quote)
     assert isinstance(bn.market_info, MarketInfo)
@@ -134,7 +134,7 @@ def test_quote_marketinfo_namespaces_wired() -> None:
 
 
 def test_on_session_down_callback_assignable() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     assert bn.on_session_down is None
 
     called: list[bool] = []
@@ -149,7 +149,7 @@ def test_on_session_down_callback_assignable() -> None:
 
 
 def test_futures_account_returns_binance_account() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     acct = bn.futures_account
     assert isinstance(acct, BinanceAccount)
     assert acct.account_type == "futures"

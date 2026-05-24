@@ -1,17 +1,17 @@
 """Tests for binance_shioaji_sdk.account.BinanceAccount."""
 from __future__ import annotations
 
-from binance_shioaji_sdk import BinanceAccount, BinanceClient
+from binance_shioaji_sdk import BinanceAccount, Binance
 
 
 def test_binance_account_creates_ok() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     acct = BinanceAccount(client_ref=bn)
     assert acct.client_ref is bn
 
 
 def test_account_id_is_string() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     acct = BinanceAccount(client_ref=bn)
     # No api_key yet -> "anon"
     assert acct.account_id == "anon"
@@ -25,6 +25,6 @@ def test_account_id_is_string() -> None:
 
 
 def test_default_account_type_is_futures() -> None:
-    bn = BinanceClient(testnet=True)
+    bn = Binance(testnet=True)
     acct = BinanceAccount(client_ref=bn)
     assert acct.account_type == "futures"

@@ -76,6 +76,39 @@ async def test_login_rejects_empty_credentials() -> None:
 
 
 @pytest.mark.asyncio
+async def test_login_raises_auth_error_on_bad_credentials() -> None:
+    """Bad keys cause listenKey 401 → BinanceAuthError propagates from login().
+
+    Before fix: login() returned cleanly with is_connected=True even when
+    credentials were rejected (silent half-connected state).
+    """
+    from binance_shioaji_sdk import BinanceAuthError
+
+    bn = BinanceClient(testnet=True)
+
+    async def _raise_auth(*_args, **_kwargs):
+        raise BinanceAuthError("POST /fapi/v1/listenKey HTTP 401 — credentials rejected by Binance")
+
+    with patch(
+        "binance_shioaji_sdk.client.BinanceWSManager.create_listen_key",
+        new=AsyncMock(side_effect=_raise_auth),
+    ), patch(
+        "binance_shioaji_sdk._internal.rest_client.BinanceRestClient.connect",
+        new=AsyncMock(return_value=None),
+    ), patch(
+        "binance_shioaji_sdk._internal.rest_client.BinanceRestClient._ensure_client",
+        return_value=object(),
+    ), patch(
+        "binance_shioaji_sdk._internal.rest_client.BinanceRestClient.close",
+        new=AsyncMock(return_value=None),
+    ):
+        with pytest.raises(BinanceAuthError, match="HTTP 401"):
+            await bn.login("bad_key", "bad_secret")
+        # Important: connected flag stays False; caller can retry with good keys
+        assert bn.is_connected is False
+
+
+@pytest.mark.asyncio
 async def test_order_methods_require_login() -> None:
     """Wire-in: place_order/cancel_order/list_trades raise RuntimeError when not logged in."""
     bn = BinanceClient(testnet=True)

@@ -14,7 +14,7 @@ from binance_shioaji_sdk._internal.rest_client import (
     _ENDPOINT_WEIGHTS,
     _WEIGHT_LIMIT_PER_MIN,
 )
-from binance_shioaji_sdk._internal.types import ExecutionReport
+from binance_shioaji_sdk._internal.types import BinanceAuthError, ExecutionReport
 from binance_shioaji_sdk._internal.ws_manager import (
     BinanceWSManager,
     LISTEN_KEY_KEEPALIVE_INTERVAL,
@@ -24,6 +24,7 @@ from binance_shioaji_sdk._internal.ws_manager import (
 )
 
 __all__ = [
+    "BinanceAuthError",
     "BinanceRestClient",
     "BinanceWSManager",
     "ExecutionReport",

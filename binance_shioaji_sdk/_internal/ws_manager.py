@@ -22,6 +22,8 @@ import json
 import logging
 from typing import Any, Awaitable, Callable
 
+from binance_shioaji_sdk._internal.types import BinanceAuthError
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -80,7 +82,12 @@ class BinanceWSManager:
         """POST /fapi/v1/listenKey 取得新的 listenKey。
 
         注意：直接走 httpx.AsyncClient（繞過 BinanceRestClient.post 的 retry），
-        以保留原 broker_binance 行為（單次嘗試 + 失敗回 None + log warning）。
+        單次嘗試 + 失敗回 None + log warning（best-effort，避免 transient
+        5xx / network 故障影響不依賴 user stream 的 REST query）。
+
+        例外：HTTP 401 / 403 表示 credentials 本身被拒，REST query 同樣會 fail；
+        當 transient 處理會讓 caller 拿到「半連線」的 client。改為 raise
+        ``BinanceAuthError``，讓 caller fail fast。
         """
         if not api_key:
             return None
@@ -91,7 +98,14 @@ class BinanceWSManager:
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("listenKey")
+            if resp.status_code in (401, 403):
+                raise BinanceAuthError(
+                    f"POST /fapi/v1/listenKey HTTP {resp.status_code} — "
+                    "credentials rejected by Binance"
+                )
             logger.warning("[BinanceWSManager] POST /fapi/v1/listenKey -> HTTP %d", resp.status_code)
+        except BinanceAuthError:
+            raise
         except Exception as exc:
             logger.error("[BinanceWSManager] 取得 listenKey 失敗: %s", exc)
         return None

@@ -145,8 +145,10 @@ class BinanceClient:
         if self._ws is None:
             self._ws = BinanceWSManager(base_url=self._ws_base_url)
 
-        # Best-effort listenKey creation (must not raise on failure — broker
-        # behaviour: log + None, queries still work without user stream).
+        # listenKey creation: best-effort for transient errors (5xx / network)
+        # — REST queries still work without user stream. Auth failure
+        # (401/403) propagates as BinanceAuthError so caller fails fast on
+        # bad credentials instead of getting a half-connected client.
         await self._create_listen_key()
         if self._listen_key and self._listen_key_task is None:
             self._listen_key_task = asyncio.create_task(self._listen_key_keepalive_loop())

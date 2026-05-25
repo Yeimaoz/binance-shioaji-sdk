@@ -225,11 +225,11 @@ async def test_handle_user_event_routes_and_triggers_wait_fill() -> None:
 
 @pytest.mark.asyncio
 async def test_wait_fill_returns_cached_terminal() -> None:
-    from binance_shioaji_sdk._internal import ExecutionReport
+    from binance_shioaji_sdk.fill_report import BinanceFillReport
     from binance_shioaji_sdk.quote import Quote
 
     q = Quote(_FakeClient(api_key="k"))
-    q._execution_reports["7"] = ExecutionReport(
+    q._execution_reports["7"] = BinanceFillReport(
         order_id="7", symbol="BTCUSDT", status="CANCELED", side="BUY",
         order_type="LIMIT", qty=1, filled_qty=0, last_filled_price=0, avg_price=0,
     )

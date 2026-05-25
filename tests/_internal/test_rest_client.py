@@ -30,23 +30,24 @@ from binance_shioaji_sdk._internal import (
 
 
 def test_public_top_level_imports() -> None:
+    # v0.4.0: ExecutionReport / OrderResponse removed from static imports
+    # (still accessible via __getattr__ DeprecationWarning hook — see test_deprecation.py)
     from binance_shioaji_sdk import (
         BinanceAccount,
         Binance,
         BinanceContract,
+        BinanceFillReport,
+        BinanceTrade,
         Contracts,
-        ExecutionReport,
         MarketInfo,
         Order,
-        OrderResponse,
         Quote,
         __version__,
     )
 
-    # New v0.2.x release once PR-X1 lands; allow either tag.
     assert __version__.startswith("0.")
     for cls in (Binance, BinanceAccount, BinanceContract, Contracts,
-                Order, OrderResponse, Quote, MarketInfo, ExecutionReport):
+                Order, BinanceTrade, Quote, MarketInfo, BinanceFillReport):
         assert cls is not None
 
 
@@ -58,10 +59,11 @@ def test_internal_imports() -> None:
     assert callable(sign_request)
 
 
-def test_execution_report_dataclass() -> None:
-    from binance_shioaji_sdk import ExecutionReport
+def test_fill_report_dataclass() -> None:
+    """v0.4.0: ExecutionReport renamed to BinanceFillReport (H-1 exemption — fields verbatim)."""
+    from binance_shioaji_sdk import BinanceFillReport
 
-    rpt = ExecutionReport(
+    rpt = BinanceFillReport(
         order_id="123",
         symbol="BTCUSDT",
         status="FILLED",

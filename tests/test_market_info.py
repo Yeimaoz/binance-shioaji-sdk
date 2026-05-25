@@ -38,10 +38,10 @@ async def test_funding_rate_happy_path() -> None:
     mi = MarketInfo(client)
     out = await mi.funding_rate("BTC")
 
-    assert out["symbol"] == "BTCUSDT"
-    assert out["rate"] == 0.0001
-    assert out["annualized"] == round(0.0001 * 3 * 365, 6)
-    assert "next_settlement" in out and out["next_settlement"].endswith("+00:00")
+    # v0.4.0: returns BinanceFundingRate dataclass (was dict). `annualized` removed.
+    assert out.code == "BTCUSDT"
+    assert out.rate == 0.0001
+    assert out.next_funding_time.endswith("+00:00")
     assert client._rest.calls[0]["params"] == {"symbol": "BTCUSDT"}
 
 
@@ -61,10 +61,12 @@ async def test_open_interest_happy_path() -> None:
     mi = MarketInfo(client)
     out = await mi.open_interest("BTCUSDT")
 
-    assert out["symbol"] == "BTCUSDT"
-    assert out["open_interest"] == 12345.5
-    assert out["open_interest_usdt"] == round(12345.5 * 100, 2)
-    assert out["timestamp"] == 1700000000123
+    # v0.4.0: returns BinanceOpenInterest dataclass; timestamp is ISO 8601 str (was int ms)
+    assert out.code == "BTCUSDT"
+    assert out.open_interest == 12345.5
+    assert out.open_interest_usdt == round(12345.5 * 100, 2)
+    # timestamp epoch ms 1700000000123 → ISO 8601 UTC
+    assert out.timestamp.startswith("2023-11-14") and out.timestamp.endswith("+00:00")
 
 
 @pytest.mark.asyncio
@@ -87,9 +89,10 @@ async def test_funding_rate_history_with_bounds() -> None:
         "BTC", limit=2000, start_time=1, end_time=2,
     )
 
+    # v0.4.0: returns list[BinanceFundingRateEntry]; field names rate/mark_price/funding_time (ISO str)
     assert len(out) == 2
-    assert out[0]["fundingRate"] == 0.0001
-    assert out[1]["markPrice"] == 0.0  # empty string falls back to 0
+    assert out[0].rate == 0.0001
+    assert out[1].mark_price == 0.0  # empty string falls back to 0
     sent = client._rest.calls[0]["params"]
     assert sent["limit"] == 1000  # clamped
     assert sent["startTime"] == 1
@@ -97,15 +100,17 @@ async def test_funding_rate_history_with_bounds() -> None:
 
 
 @pytest.mark.asyncio
-async def test_funding_rate_history_returns_empty_on_error() -> None:
+async def test_funding_rate_history_raises_on_error() -> None:
+    """v0.4.0 BEHAVIORAL BREAK: was silent [] return, now raises typed exception."""
     from binance_shioaji_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.exceptions import BinanceMarketDataError
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/fundingRate", {"error": "HTTP 500"})
 
     mi = MarketInfo(client)
-    out = await mi.funding_rate_history("BTC")
-    assert out == []
+    with pytest.raises(BinanceMarketDataError):
+        await mi.funding_rate_history("BTC")
 
 
 # ---------------------------------------------------------------------------
@@ -132,16 +137,18 @@ async def test_funding_rate_symbol_already_usdt_no_double_suffix() -> None:
 
 
 @pytest.mark.asyncio
-async def test_funding_rate_returns_error_dict_on_4xx() -> None:
+async def test_funding_rate_raises_on_4xx() -> None:
+    """v0.4.0: was {error,...} dict return, now raises BinanceMarketDataError."""
     from binance_shioaji_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.exceptions import BinanceMarketDataError
 
     client = _FakeClient()
     client._rest.queue(
         "GET", "/fapi/v1/premiumIndex", {"error": "HTTP 400", "detail": {"code": -1121}}
     )
     mi = MarketInfo(client)
-    out = await mi.funding_rate("INVALID")
-    assert "error" in out
+    with pytest.raises(BinanceMarketDataError):
+        await mi.funding_rate("INVALID")
 
 
 @pytest.mark.asyncio
@@ -208,22 +215,24 @@ async def test_open_interest_symbol_auto_appends_usdt() -> None:
 
     mi = MarketInfo(client)
     out = await mi.open_interest("BTC")
-    assert out["symbol"] == "BTCUSDT"
+    assert out.code == "BTCUSDT"
     # First REST call params symbol must be normalized
     assert client._rest.calls[0]["params"]["symbol"] == "BTCUSDT"
 
 
 @pytest.mark.asyncio
-async def test_open_interest_api_error_returns_error_dict() -> None:
+async def test_open_interest_raises_on_api_error() -> None:
+    """v0.4.0: was {error,...} dict, now raises BinanceMarketDataError."""
     from binance_shioaji_sdk.market_info import MarketInfo
+    from binance_shioaji_sdk.exceptions import BinanceMarketDataError
 
     client = _FakeClient()
     client._rest.queue("GET", "/fapi/v1/openInterest",
                        {"error": "HTTP 400", "detail": {"code": -1121}})
 
     mi = MarketInfo(client)
-    out = await mi.open_interest("INVALID")
-    assert "error" in out
+    with pytest.raises(BinanceMarketDataError):
+        await mi.open_interest("INVALID")
 
 
 @pytest.mark.asyncio
@@ -241,9 +250,9 @@ async def test_open_interest_mark_price_failure_yields_zero_usdt() -> None:
 
     mi = MarketInfo(client)
     out = await mi.open_interest("BTCUSDT")
-    assert out["open_interest"] == 999.0
-    # Either 0.0 (best-effort fallback) or absent — current SDK falls back to 0
-    assert out["open_interest_usdt"] == 0.0
+    assert out.open_interest == 999.0
+    # 0.0 fallback (best-effort) when mark price call fails
+    assert out.open_interest_usdt == 0.0
 
 
 @pytest.mark.asyncio
@@ -260,7 +269,7 @@ async def test_open_interest_usdt_calculation() -> None:
 
     mi = MarketInfo(client)
     out = await mi.open_interest("BTCUSDT")
-    assert out["open_interest_usdt"] == round(100 * 60000, 2)
+    assert out.open_interest_usdt == round(100 * 60000, 2)
 
 
 @pytest.mark.asyncio
@@ -282,6 +291,7 @@ async def test_funding_rate_history_partial_bad_entry_skipped() -> None:
     mi = MarketInfo(client)
     out = await mi.funding_rate_history("BTCUSDT", limit=3)
     # Bad entry skipped; 2 good ones remain
+    # v0.4.0: funding_time is ISO 8601 UTC string (was epoch ms int)
     assert len(out) == 2
-    assert out[0]["fundingTime"] == 1700000000000
-    assert out[1]["fundingTime"] == 1700028800000
+    assert out[0].funding_time.startswith("2023-11-14") and out[0].funding_time.endswith("+00:00")
+    assert out[1].funding_time.startswith("2023-11-15") and out[1].funding_time.endswith("+00:00")

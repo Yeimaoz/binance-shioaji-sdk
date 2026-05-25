@@ -30,8 +30,8 @@ from binance_shioaji_sdk._internal import (
 
 
 def test_public_top_level_imports() -> None:
-    # v0.4.0: ExecutionReport / OrderResponse removed from static imports
-    # (still accessible via __getattr__ DeprecationWarning hook — see test_deprecation.py)
+    # v0.5.0: ExecutionReport / OrderResponse legacy aliases removed.
+    # Use BinanceFillReport / BinanceTrade directly.
     from binance_shioaji_sdk import (
         BinanceAccount,
         Binance,

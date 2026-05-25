@@ -14,13 +14,9 @@ from binance_shioaji_sdk._internal.rest_client import (
     _ENDPOINT_WEIGHTS,
     _WEIGHT_LIMIT_PER_MIN,
 )
-# v0.4.0: BinanceAuthError now lives in top-level exceptions.py.
-# ExecutionReport replaced by BinanceFillReport (top-level fill_report.py);
-# the old ExecutionReport class is still defined in types.py for backwards-compat
-# of internal callers but the top-level __init__.py exposes the new name only
-# (via __getattr__ deprecation hook).
+# v0.4.0: BinanceAuthError lives in top-level exceptions.py.
+# v0.5.0: ExecutionReport alias removed; use BinanceFillReport.
 from binance_shioaji_sdk.exceptions import BinanceAuthError
-from binance_shioaji_sdk._internal.types import ExecutionReport  # legacy internal use
 from binance_shioaji_sdk.fill_report import BinanceFillReport
 from binance_shioaji_sdk._internal.ws_manager import (
     BinanceWSManager,
@@ -35,7 +31,6 @@ __all__ = [
     "BinanceFillReport",
     "BinanceRestClient",
     "BinanceWSManager",
-    "ExecutionReport",   # legacy — kept for internal backwards-compat; quote.py has migrated to BinanceFillReport
     "_TokenBucket",
     "sign_request",
     "_ENDPOINT_WEIGHTS",

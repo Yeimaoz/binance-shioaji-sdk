@@ -15,14 +15,9 @@ Public API:
     print(trade.status.id)                            # broker order id (mirrors sj.Trade.status.id)
     await api.logout()
 """
-import warnings
-
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # v0.4.0 dataclass returns + exception hierarchy.
-# STATIC imports REQUIRED for __getattr__ globals() resolution below
-# (H-new-2: BinanceTrade + BinanceFillReport must be in module namespace
-# so the deprecation hook can forward old names to them).
 from binance_shioaji_sdk.exceptions import (
     BinanceSDKError,
     BinanceMarketDataError,
@@ -77,26 +72,3 @@ __all__ = [
     "BinanceOpenInterest",
 ]
 
-# Deprecation aliases — H-new-2 mechanism (design §3.7).
-# OrderResponse and ExecutionReport are NO LONGER statically imported above
-# (NOR in __all__). __getattr__ hook below catches access at attribute level
-# and emits DeprecationWarning + forwards to the new class via globals()
-# lookup (the new names ARE statically imported above, so globals() finds them).
-# Removed entirely in v0.5.0.
-_DEPRECATED_ALIASES = {
-    "ExecutionReport": ("BinanceFillReport", "v0.5.0"),
-    "OrderResponse":   ("BinanceTrade",      "v0.5.0"),
-}
-
-
-def __getattr__(name: str):
-    if name in _DEPRECATED_ALIASES:
-        new_name, removal_version = _DEPRECATED_ALIASES[name]
-        warnings.warn(
-            f"{name} is deprecated; use {new_name}. "
-            f"Will be removed in {removal_version}.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return globals()[new_name]
-    raise AttributeError(f"module 'binance_shioaji_sdk' has no attribute {name!r}")

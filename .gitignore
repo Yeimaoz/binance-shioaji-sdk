@@ -13,3 +13,7 @@ venv/
 htmlcov/
 .coverage
 *.log
+
+# worktree-local
+.envrc
+.claude/

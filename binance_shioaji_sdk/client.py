@@ -218,18 +218,20 @@ class Binance:
 
     # ── Account / position queries ───────────────────────────────────────
 
-    async def list_positions(self, account: BinanceAccount) -> list[dict]:
-        """Query open positions for the given account.
+    async def list_positions(self, account: BinanceAccount) -> "list[BinanceFuturePosition]":
+        """Query open positions. v0.4.0: returns list[BinanceFuturePosition].
 
-        Mirrors `sj.list_positions(account)`. Account is a thin handle; in
-        Binance there is exactly one futures account per API key, but we
-        accept the parameter for shape parity.
+        Mirrors `sj.list_positions(account)`. Zero-qty entries omitted
+        (design §3.2.2). Direction uses shioaji vocab ("Buy"/"Sell")
+        not Binance ("long"/"short"). Position id synthesized as
+        f"{symbol}_{positionSide}".
 
-        Returns
-        -------
-        list of normalized position dicts. Empty list when API errors or
-        when no positions are open.
+        Raises BinanceAccountError on REST failure (v0.4.0 behavioral change —
+        v0.3.x returned [] on error).
         """
+        from binance_shioaji_sdk.position import BinanceFuturePosition
+        from binance_shioaji_sdk.exceptions import BinanceAccountError
+        from decimal import Decimal
         if account.account_type != "futures":
             raise ValueError(
                 f"[Binance] list_positions: only 'futures' supported, "
@@ -239,63 +241,164 @@ class Binance:
         raw = await rest.get("/fapi/v2/positionRisk", signed=True)
         if isinstance(raw, dict) and "error" in raw:
             logger.warning("[Binance] list_positions failed: %s", raw)
-            return []
+            raise BinanceAccountError(f"list_positions REST failed: {raw}")
         if not isinstance(raw, list):
-            return []
+            raise BinanceAccountError(f"list_positions: unexpected response shape: {raw!r}")
 
-        result: list[dict] = []
+        result: list[BinanceFuturePosition] = []
         for p in raw:
-            qty = float(p.get("positionAmt", 0))
-            if qty == 0:
+            try:
+                amt = Decimal(str(p.get("positionAmt", 0)))
+            except Exception:
                 continue
-            result.append({
-                "symbol": p.get("symbol", ""),
-                "direction": "long" if qty > 0 else "short",
-                "quantity": abs(qty),
-                "avg_price": float(p.get("entryPrice", 0)),
-                "unrealized_pnl": float(p.get("unRealizedProfit", 0)),
-            })
+            if amt == Decimal(0):
+                continue
+            symbol = p.get("symbol", "")
+            position_side = p.get("positionSide", "BOTH")
+            direction = "Buy" if amt > Decimal(0) else "Sell"
+            result.append(BinanceFuturePosition(
+                code=symbol,
+                direction=direction,
+                id=f"{symbol}_{position_side}",
+                last_price=float(p.get("markPrice", 0) or 0),
+                pnl=float(p.get("unRealizedProfit", 0) or 0),
+                price=float(p.get("entryPrice", 0) or 0),
+                quantity=abs(amt),
+            ))
         return result
 
-    async def account_balance(self) -> dict:
-        """Query USDT futures wallet balance.
+    async def account_balance(self) -> "BinanceAccountBalance":
+        """Query USDT futures wallet balance. v0.4.0: returns BinanceAccountBalance.
 
-        Mirrors `sj.account_balance()`. Returns dict with at least:
-        equity / available / initial_margin / maintenance_margin keys.
+        Mirrors `sj.account_balance()`. acc_balance maps to the wallet
+        balance ("balance" field in /fapi/v2/balance USDT entry). Margin
+        breakdown lives in separate `margin(account)` call.
+
+        Raises BinanceAccountError on REST failure (v0.4.0 behavioral change —
+        v0.3.x returned zero-filled dict).
         """
+        from binance_shioaji_sdk.balance import BinanceAccountBalance
+        from binance_shioaji_sdk.exceptions import BinanceAccountError
+        from datetime import date as _date
         rest = self._require_rest()
         raw = await rest.get("/fapi/v2/balance", signed=True)
         if isinstance(raw, dict) and "error" in raw:
             logger.warning("[Binance] account_balance failed: %s", raw)
-            return {
-                "equity": 0.0,
-                "available": 0.0,
-                "initial_margin": 0.0,
-                "maintenance_margin": 0.0,
-            }
-
-        usdt: dict[str, Any] = {}
+            raise BinanceAccountError(f"account_balance REST failed: {raw}")
         if isinstance(raw, list):
             for b in raw:
                 if b.get("asset") == "USDT":
-                    usdt = b
-                    break
-        return {
-            "equity": float(usdt.get("balance", 0.0)),
-            "available": float(usdt.get("availableBalance", 0.0)),
-            "initial_margin": float(usdt.get("initialMargin", 0.0)),
-            "maintenance_margin": float(usdt.get("maintMargin", 0.0)),
-        }
+                    return BinanceAccountBalance(
+                        acc_balance=float(b.get("balance", 0) or 0),
+                        date=_date.today().isoformat(),
+                        errmsg="",
+                        status="200",
+                    )
+        raise BinanceAccountError(
+            f"account_balance: USDT asset not found in response: {raw!r}"
+        )
+
+    async def margin(self, account: BinanceAccount) -> "BinanceMargin":
+        """Query margin breakdown. NEW in v0.4.0 — mirrors `sj.margin(account)`.
+
+        shioaji decomposes balance vs margin into two models / two calls.
+        Binance's /fapi/v2/account endpoint returns the margin fields;
+        /fapi/v2/balance returns wallet balance (account_balance() uses that).
+
+        Raises BinanceAccountError on REST failure.
+        """
+        from binance_shioaji_sdk.balance import BinanceMargin
+        from binance_shioaji_sdk.exceptions import BinanceAccountError
+        if account.account_type != "futures":
+            raise ValueError(
+                f"[Binance] margin: only 'futures' supported, "
+                f"got account_type={account.account_type!r}"
+            )
+        rest = self._require_rest()
+        raw = await rest.get("/fapi/v2/account", signed=True)
+        if isinstance(raw, dict) and "error" in raw:
+            logger.warning("[Binance] margin failed: %s", raw)
+            raise BinanceAccountError(f"margin REST failed: {raw}")
+        eq = float(raw.get("totalMarginBalance", 0) or 0)
+        return BinanceMargin(
+            available_margin=float(raw.get("availableBalance", 0) or 0),
+            initial_margin=float(raw.get("totalInitialMargin", 0) or 0),
+            maintenance_margin=float(raw.get("totalMaintMargin", 0) or 0),
+            equity=eq,
+            equity_amount=eq,
+            today_balance=float(raw.get("totalWalletBalance", 0) or 0),
+            yesterday_balance=0.0,  # Binance doesn't track daily snapshot
+            status="200",
+        )
 
     # ── Order placement / cancellation / query ───────────────────────────
 
     async def place_order(
         self, contract: BinanceContract, order: _Order
-    ) -> OrderResponse:
-        """Mirror shioaji `sj.place_order(contract, order)`."""
-        return await place_order_via(
-            self._require_rest(), contract, order, base_url=self._base_url
+    ) -> "BinanceTrade":
+        """Submit order. v0.4.0: returns BinanceTrade composite.
+
+        Mirror shioaji `sj.place_order(contract, order)`. Order id lives at
+        `trade.status.id` (mirrors sj.OrderStatusInfo.id) — NOT on `trade.order`.
+
+        Raises BinanceAuthError on auth failure (codes -2014/-2015 or msg
+        contains "signature"/"api-key"/"auth"); BinanceAccountError on other
+        REST failures including rate-limit (-1003).
+        """
+        from binance_shioaji_sdk.trade import (
+            BinanceTrade, BinanceTradeStatus, BinanceOrderStatusEnum,
         )
+        from binance_shioaji_sdk.exceptions import (
+            BinanceAuthError, BinanceAccountError,
+        )
+        from datetime import datetime, timezone
+        rest = self._require_rest()
+        resp = await place_order_via(rest, contract, order, base_url=self._base_url)
+        # M-3 fix: place_order_via does NOT raise on REST error — returns
+        # OrderResponse(status="REJECTED", raw={"error":..., "detail":...}).
+        # Inspect status + classify before converting to BinanceTrade.
+        if str(getattr(resp, "status", "")).upper() == "REJECTED":
+            raw_err = getattr(resp, "raw", {}) or {}
+            detail = raw_err.get("detail") if isinstance(raw_err, dict) else {}
+            code = detail.get("code", "") if isinstance(detail, dict) else ""
+            msg = (detail.get("msg", "") if isinstance(detail, dict) else str(raw_err)).lower()
+            # Binance Futures auth codes: -2014 (invalid key format), -2015 (invalid key/secret/permissions)
+            if code in (-2014, -2015) or "signature" in msg or "api-key" in msg or "auth" in msg:
+                raise BinanceAuthError(f"place_order auth failure: {raw_err}")
+            if code == -1003 or "rate" in msg:
+                raise BinanceAccountError(f"place_order rate limited: {raw_err}")
+            raise BinanceAccountError(f"place_order rejected: {raw_err}")
+        # Success path — convert OrderResponse → BinanceTrade
+        status_map = {
+            "NEW": BinanceOrderStatusEnum.Submitted,
+            "PARTIALLY_FILLED": BinanceOrderStatusEnum.PartFilled,
+            "FILLED": BinanceOrderStatusEnum.Filled,
+            "CANCELED": BinanceOrderStatusEnum.Cancelled,
+            "REJECTED": BinanceOrderStatusEnum.Failed,
+            "EXPIRED": BinanceOrderStatusEnum.Cancelled,
+        }
+        binance_status = status_map.get(
+            str(resp.status).upper(), BinanceOrderStatusEnum.Submitted,
+        )
+        avg = getattr(resp, "avg_filled_price", None)
+        modified_price = float(avg) if avg else 0.0
+        # Filled-with-zero-price → broker data corruption per design §3.2.3
+        if binance_status == BinanceOrderStatusEnum.Filled and modified_price == 0.0:
+            raise BinanceAccountError(
+                f"binance returned FILLED with zero price (broker data corruption): {resp.raw!r}"
+            )
+        status_obj = BinanceTradeStatus(
+            id=str(resp.order_id),
+            status=binance_status,
+            status_code="",
+            order_datetime=datetime.now(timezone.utc).isoformat(),
+            deal_quantity=int(getattr(resp, "filled_quantity", 0)) if getattr(resp, "filled_quantity", None) is not None else None,
+            order_quantity=int(order.quantity) if hasattr(order, "quantity") else None,
+            cancel_quantity=None,
+            modified_price=modified_price,
+            msg="",
+        )
+        return BinanceTrade(contract=contract, order=order, status=status_obj)
 
     async def cancel_order(self, symbol: str, order_id: str) -> bool:
         """Mirror shioaji `sj.cancel_order(trade)` (Binance needs symbol + order_id)."""

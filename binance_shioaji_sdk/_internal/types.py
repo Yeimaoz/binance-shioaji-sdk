@@ -12,13 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-class BinanceAuthError(Exception):
-    """Raised when Binance REST endpoint returns 401 or 403.
-
-    Distinguishes authentication failure (bad credentials) from transient
-    errors (5xx / network). Used so callers like ``Binance.login()``
-    can fail fast on bad keys instead of returning a half-connected client.
-    """
+# v0.4.0: BinanceAuthError moved to top-level binance_shioaji_sdk.exceptions
+# and reparented from bare Exception to BinanceSDKError. Re-export below for
+# internal callers (backwards-compat). New code: import from .exceptions.
+from binance_shioaji_sdk.exceptions import BinanceAuthError  # noqa: F401
 
 
 @dataclass

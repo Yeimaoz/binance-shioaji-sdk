@@ -32,6 +32,11 @@ class BinanceFillReport:
 
     Fields copied verbatim from ``_internal/types.py`` ``ExecutionReport``.
 
+    NOTE (L-1): ``frozen=True`` upgrade in v0.4.0 (shioaji coding style).
+    Original ``ExecutionReport`` is mutable; ``BinanceFillReport`` is not.
+    Post-construction assignment (e.g. ``report.status = "FILLED"``) raises
+    ``dataclasses.FrozenInstanceError``.
+
     Usage::
 
         report = BinanceFillReport(

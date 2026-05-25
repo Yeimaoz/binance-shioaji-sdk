@@ -12,8 +12,10 @@ from dataclasses import dataclass
 class BinanceAccountBalance:
     """Mirror of sj.AccountBalance — exact 4 fields.
 
-    Note: Binance source for acc_balance is `totalWalletBalance` from
-    /fapi/v2/balance. equity/margin info lives in BinanceMargin (separate call).
+    Note: Binance source for acc_balance is the `balance` field in the
+    per-asset entry from /fapi/v2/balance (NOT `totalWalletBalance` — that
+    lives in /fapi/v2/account and is wired through BinanceMargin.today_balance).
+    equity / margin info lives in BinanceMargin (separate call).
     """
     acc_balance: float
     date: str           # today's date YYYY-MM-DD

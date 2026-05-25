@@ -35,7 +35,7 @@ __all__ = [
     "BinanceFillReport",
     "BinanceRestClient",
     "BinanceWSManager",
-    "ExecutionReport",   # legacy — Task 10 quote.py migrates away from this
+    "ExecutionReport",   # legacy — kept for internal backwards-compat; quote.py has migrated to BinanceFillReport
     "_TokenBucket",
     "sign_request",
     "_ENDPOINT_WEIGHTS",

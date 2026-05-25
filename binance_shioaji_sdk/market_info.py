@@ -31,10 +31,13 @@ def _normalize_symbol(raw: str) -> str:
 class MarketInfo:
     """Crypto-specific market data namespace.
 
-    Public surface:
-        await funding_rate(symbol) -> dict
-        await funding_rate_history(symbol, limit=100, start_time=None, end_time=None) -> list[dict]
-        await open_interest(symbol) -> dict
+    Public surface (v0.4.0):
+        await funding_rate(symbol) -> BinanceFundingRate
+        await funding_rate_history(symbol, limit=100, start_time=None, end_time=None) -> list[BinanceFundingRateEntry]
+        await open_interest(symbol) -> BinanceOpenInterest
+
+    All three raise BinanceMarketDataError on REST failure (v0.4.0
+    behavioral break — v0.3.x silently returned dict/[]).
     """
 
     def __init__(self, client: "Binance") -> None:

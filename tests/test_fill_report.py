@@ -21,13 +21,23 @@ def test_module_file_exists():
 
 
 def test_binance_fill_report_is_frozen_dataclass():
-    """BinanceFillReport must be a frozen dataclass."""
+    """BinanceFillReport must be a frozen dataclass — declared + runtime check (L-1 + I-3)."""
     from binance_shioaji_sdk.fill_report import BinanceFillReport
     import dataclasses
+    import pytest as _pt
 
     assert dataclasses.is_dataclass(BinanceFillReport), "BinanceFillReport must be a dataclass"
     params = BinanceFillReport.__dataclass_params__
     assert params.frozen, "BinanceFillReport must be frozen"
+
+    # Runtime mutation must raise (post-construction assignment) — I-3 fix
+    report = BinanceFillReport(
+        order_id="X", symbol="BTCUSDT", status="NEW", side="BUY",
+        order_type="LIMIT", qty=1.0, filled_qty=0.0,
+        last_filled_price=0.0, avg_price=0.0,
+    )
+    with _pt.raises(dataclasses.FrozenInstanceError):
+        report.status = "FILLED"  # type: ignore[misc]
 
 
 def test_class_docstring_mentions_vocabulary_exemption():

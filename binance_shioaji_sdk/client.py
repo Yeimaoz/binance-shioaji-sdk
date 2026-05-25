@@ -407,7 +407,15 @@ class Binance:
     async def list_trades(
         self, symbol: str | None = None, limit: int = 500
     ) -> list[OrderResponse]:
-        """Mirror shioaji `sj.list_trades()`."""
+        """Mirror shioaji `sj.list_trades()`.
+
+        NOTE (code-review H-1): v0.4.0 DEFERS list_trades return-type
+        migration to v0.5.0. Design §3.6 specified `list[BinanceTrade]` with
+        synthetic stub `BinanceContract(symbol=...)` for history entries, but
+        §2 in-scope + §6 acceptance criteria did not mandate it. Implementer
+        followed §2/§6 over §3.6 to keep v0.4.0 scope tight. Tracked for
+        v0.5.0 in design §9 follow-ups.
+        """
         return await list_trades_via(self._require_rest(), symbol=symbol, limit=limit)
 
     # ── Helpers ──────────────────────────────────────────────────────────

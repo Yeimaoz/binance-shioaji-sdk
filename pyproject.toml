@@ -13,6 +13,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4", "mypy>=1.10"]
+# Reflection-based mirror tests need shioaji to introspect the real model fields.
+# Optional — tests skip if shioaji not installed. Install: `pip install -e '.[mirror-test]'`.
+mirror-test = ["shioaji"]
 
 [build-system]
 requires = ["hatchling"]

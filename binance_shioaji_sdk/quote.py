@@ -26,10 +26,10 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from binance_shioaji_sdk._internal import (
     BinanceWSManager,
-    ExecutionReport,
     LISTEN_KEY_KEEPALIVE_INTERVAL,
     VALID_KLINE_INTERVALS,
 )
+from binance_shioaji_sdk.fill_report import BinanceFillReport
 
 if TYPE_CHECKING:
     from binance_shioaji_sdk.client import Binance
@@ -72,14 +72,14 @@ class Quote:
         await subscribe(contract, qtype, cb)
         await unsubscribe(contract, qtype)
         await subscribe_user_stream(cb)
-        await wait_fill(order_id, timeout=30.0) -> ExecutionReport | None
+        await wait_fill(order_id, timeout=30.0) -> BinanceFillReport | None
 
     Internal state (one map per WS channel):
         _tick_callbacks       : symbol -> list[cb(symbol, mark_price, ts_ns)]
         _book_ticker_callbacks: symbol -> list[cb(symbol, bid, ask, bid_qty, ask_qty)]
         _kline_callbacks      : (symbol, interval) -> cb(bar_dict)
-        _user_stream_callbacks: list[cb(ExecutionReport)]
-        _execution_reports    : order_id -> latest ExecutionReport (terminal cache)
+        _user_stream_callbacks: list[cb(BinanceFillReport)]
+        _execution_reports    : order_id -> latest BinanceFillReport (terminal cache)
         _fill_events          : order_id -> asyncio.Event (wait_fill rendezvous)
     """
 
@@ -90,7 +90,7 @@ class Quote:
         self._tick_callbacks: dict[str, list[Callable[..., Any]]] = {}
         self._book_ticker_callbacks: dict[str, list[Callable[..., Any]]] = {}
         self._kline_callbacks: dict[tuple[str, str], Callable[..., Any]] = {}
-        self._user_stream_callbacks: list[Callable[[ExecutionReport], Any]] = []
+        self._user_stream_callbacks: list[Callable[[BinanceFillReport], Any]] = []
 
         # Optional global tick callback (parity with shioaji set_on_tick_*)
         self._global_tick_callback: Callable[..., Any] | None = None
@@ -107,7 +107,7 @@ class Quote:
 
         # User stream / wait_fill plumbing
         self._listen_key: str | None = None
-        self._execution_reports: dict[str, ExecutionReport] = {}
+        self._execution_reports: dict[str, BinanceFillReport] = {}
         self._fill_events: dict[str, asyncio.Event] = {}
 
         # Lazy-import websockets manager — 從 client 拿 ws base URL（mainnet vs testnet）
@@ -179,7 +179,7 @@ class Quote:
 
     async def subscribe_user_stream(
         self,
-        callback: Callable[[ExecutionReport], Any],
+        callback: Callable[[BinanceFillReport], Any],
     ) -> None:
         """Subscribe to userDataStream (order events). Requires api_key."""
         api_key = getattr(self._client, "api_key", None)
@@ -205,10 +205,10 @@ class Quote:
         self,
         order_id: str,
         timeout: float = 30.0,
-    ) -> ExecutionReport | None:
+    ) -> BinanceFillReport | None:
         """Block until `order_id` reaches a terminal state (FILLED/CANCELED/EXPIRED).
 
-        Returns the terminal `ExecutionReport`, or None on timeout. Requires
+        Returns the terminal `BinanceFillReport`, or None on timeout. Requires
         `subscribe_user_stream(...)` to be active.
         """
         cached = self._execution_reports.get(order_id)
@@ -495,7 +495,7 @@ class Quote:
             return
         try:
             order_id = str(msg["i"])
-            report = ExecutionReport(
+            report = BinanceFillReport(
                 order_id=order_id,
                 symbol=msg.get("s", ""),
                 status=msg.get("X", ""),

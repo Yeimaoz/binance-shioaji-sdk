@@ -1,6 +1,6 @@
 [project]
 name = "binance-shioaji-sdk"
-version = "0.4.0"
+version = "0.5.0"
 description = "Async Python SDK for Binance Futures with shioaji-style API. Drop-in for quants migrating between TW (shioaji) and crypto markets."
 authors = [{name = "Li-Cheng Zheng", email = "lczheng.official@gmail.com"}]
 license = {text = "Apache-2.0"}

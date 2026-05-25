@@ -55,33 +55,31 @@ class MarketInfo:
 
     # ── funding rate ─────────────────────────────────────────────────────
 
-    async def funding_rate(self, symbol: str) -> dict:
-        """Return current funding rate snapshot.
+    async def funding_rate(self, symbol: str) -> "BinanceFundingRate":
+        """Current funding rate snapshot. v0.4.0: returns BinanceFundingRate.
 
-        On API error, returns the raw {error, detail} dict (parity with
-        the underlying REST client behavior).
+        Raises BinanceMarketDataError on REST failure or parse error.
+        Note: `annualized` field removed in v0.4.0 (Binance API doesn't return it;
+        was computed in v0.3.x; consumer can compute rate * 3 * 365 if needed).
         """
+        from binance_shioaji_sdk.funding import BinanceFundingRate
+        from binance_shioaji_sdk.exceptions import BinanceMarketDataError
         sym = _normalize_symbol(symbol)
         raw = await self._rest().get(
             "/fapi/v1/premiumIndex",
             params={"symbol": sym},
         )
         if isinstance(raw, dict) and "error" in raw:
-            return raw
-
+            raise BinanceMarketDataError(f"funding_rate({sym}) REST failed: {raw}")
         try:
             rate = float(raw.get("lastFundingRate", 0) or 0)
             next_ts_ms = int(raw.get("nextFundingTime", 0) or 0)
-        except (TypeError, ValueError):
-            return {"error": "parse error", "raw": raw}
-
+        except (TypeError, ValueError) as e:
+            raise BinanceMarketDataError(
+                f"funding_rate({sym}) parse failed: {raw!r}"
+            ) from e
         next_dt = datetime.fromtimestamp(next_ts_ms / 1000, tz=timezone.utc).isoformat()
-        return {
-            "symbol": sym,
-            "rate": rate,
-            "next_settlement": next_dt,
-            "annualized": round(rate * 3 * 365, 6),
-        }
+        return BinanceFundingRate(code=sym, rate=rate, next_funding_time=next_dt)
 
     async def funding_rate_history(
         self,
@@ -89,17 +87,21 @@ class MarketInfo:
         limit: int = 100,
         start_time: int | None = None,
         end_time: int | None = None,
-    ) -> list[dict]:
-        """Return historical funding rate entries (oldest first).
+    ) -> "list[BinanceFundingRateEntry]":
+        """Historical funding rate entries. v0.4.0: returns list[dataclass].
+
+        BEHAVIORAL BREAK: v0.3.x silently returned [] on error; v0.4.0 raises
+        BinanceMarketDataError. funding_time type changed from epoch ms int to
+        ISO 8601 UTC string.
 
         Args:
             symbol     : 'BTCUSDT' or 'BTC' (auto-suffixed)
             limit      : 1..1000 (Binance hard cap)
             start_time : Unix ms inclusive (optional)
             end_time   : Unix ms inclusive (optional)
-
-        Returns []  on error (warning logged) or non-list response.
         """
+        from binance_shioaji_sdk.funding import BinanceFundingRateEntry
+        from binance_shioaji_sdk.exceptions import BinanceMarketDataError
         sym = _normalize_symbol(symbol)
         params: dict[str, Any] = {
             "symbol": sym,
@@ -113,50 +115,63 @@ class MarketInfo:
         raw = await self._rest().get("/fapi/v1/fundingRate", params=params)
 
         if isinstance(raw, dict) and "error" in raw:
-            logger.warning("[MarketInfo] funding_rate_history failed: %s", raw)
-            return []
+            raise BinanceMarketDataError(
+                f"funding_rate_history({sym}) REST failed: {raw}"
+            )
         if not isinstance(raw, list):
-            return []
+            raise BinanceMarketDataError(
+                f"funding_rate_history({sym}) unexpected response: {raw!r}"
+            )
 
-        out: list[dict] = []
+        out: list[BinanceFundingRateEntry] = []
         for entry in raw:
             try:
                 mark_raw = entry.get("markPrice", "0") or "0"
-                out.append({
-                    "symbol": entry.get("symbol", sym),
-                    "fundingTime": int(entry["fundingTime"]),
-                    "fundingRate": float(entry["fundingRate"]),
-                    "markPrice": float(mark_raw),
-                })
+                ts_ms = int(entry["fundingTime"])
+                iso = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).isoformat()
+                out.append(BinanceFundingRateEntry(
+                    code=entry.get("symbol", sym),
+                    rate=float(entry["fundingRate"]),
+                    funding_time=iso,
+                    mark_price=float(mark_raw),
+                ))
             except (TypeError, ValueError, KeyError):
                 continue
         return out
 
     # ── open interest ────────────────────────────────────────────────────
 
-    async def open_interest(self, symbol: str) -> dict:
-        """Return current open interest snapshot.
+    async def open_interest(self, symbol: str) -> "BinanceOpenInterest":
+        """Current open interest snapshot. v0.4.0: returns BinanceOpenInterest.
 
-        Returns:
-            { symbol, open_interest, open_interest_usdt, timestamp }
+        BEHAVIORAL BREAK: v0.3.x returned {error, ...} dict on REST failure;
+        v0.4.0 raises BinanceMarketDataError. timestamp type changed from
+        epoch ms int to ISO 8601 UTC string.
 
-        On API error returns the raw {error, ...} dict.
+        Note: Binance /fapi/v1/openInterest only returns contract qty; this
+        method makes a second call to /fapi/v1/premiumIndex for mark price,
+        used to compute open_interest_usdt notional. Mark price call failure
+        does not block (open_interest_usdt = 0.0 in that case).
         """
+        from binance_shioaji_sdk.funding import BinanceOpenInterest
+        from binance_shioaji_sdk.exceptions import BinanceMarketDataError
         sym = _normalize_symbol(symbol)
         raw = await self._rest().get(
             "/fapi/v1/openInterest",
             params={"symbol": sym},
         )
         if isinstance(raw, dict) and "error" in raw:
-            return raw
+            raise BinanceMarketDataError(f"open_interest({sym}) REST failed: {raw}")
 
         try:
             oi = float(raw.get("openInterest", 0) or 0)
-            ts = int(raw.get("time", 0) or 0)
-        except (TypeError, ValueError):
-            return {"error": "parse error", "raw": raw}
+            ts_ms = int(raw.get("time", 0) or 0)
+        except (TypeError, ValueError) as e:
+            raise BinanceMarketDataError(
+                f"open_interest({sym}) parse failed: {raw!r}"
+            ) from e
 
-        # Best-effort USDT notional via mark price (failure does not block)
+        # Second call for mark price → USDT notional (failure does not block)
         oi_usdt = 0.0
         try:
             price_raw = await self._rest().get(
@@ -167,12 +182,13 @@ class MarketInfo:
         except Exception:
             pass
 
-        return {
-            "symbol": sym,
-            "open_interest": oi,
-            "open_interest_usdt": oi_usdt,
-            "timestamp": ts,
-        }
+        iso = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).isoformat()
+        return BinanceOpenInterest(
+            code=sym,
+            open_interest=oi,
+            open_interest_usdt=oi_usdt,
+            timestamp=iso,
+        )
 
 
 __all__ = ["MarketInfo"]

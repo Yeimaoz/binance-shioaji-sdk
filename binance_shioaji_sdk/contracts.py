@@ -5,8 +5,8 @@ binance_shioaji_sdk/contracts.py — Binance contract specifications
 Mirrors shioaji `sj.Contracts.Futures.<key>` dot-access shape:
   bn.Contracts.Perp["BTCUSDT"] -> BinanceContract
 
-v0.1: hardcoded registry of 5 commonly-used USDM perpetuals
-      (BTCUSDT / ETHUSDT / SOLUSDT / BNBUSDT / XRPUSDT).
+v0.1: hardcoded registry of 8 USDM perpetuals
+      (AVAXUSDT / BNBUSDT / BTCUSDT / DOGEUSDT / ETHUSDT / LINKUSDT / SOLUSDT / XRPUSDT).
 v0.2: dynamic /fapi/v1/exchangeInfo refresh.
 
 數值來源：Binance USDM exchangeInfo（截至 2026-05）。Spot 留 v0.2。
@@ -53,26 +53,10 @@ class BinanceContract:
 # ---------------------------------------------------------------------------
 
 # Keyed by market_type; each maps symbol -> BinanceContract.
-# tick_size / step_size / SOLUSDT / BNBUSDT 取自 Binance USDM exchangeInfo (2026-05)。
+# tick_size / step_size / min_notional 取自 Binance USDM exchangeInfo (2026-05)。
 _PERP_REGISTRY: dict[str, BinanceContract] = {
-    "BTCUSDT": BinanceContract(
-        symbol="BTCUSDT",
-        market_type="perp",
-        tick_size=0.1,
-        step_size=0.001,
-        min_notional=5.0,
-        leverage_max=125,
-    ),
-    "ETHUSDT": BinanceContract(
-        symbol="ETHUSDT",
-        market_type="perp",
-        tick_size=0.01,
-        step_size=0.001,
-        min_notional=5.0,
-        leverage_max=100,
-    ),
-    "SOLUSDT": BinanceContract(
-        symbol="SOLUSDT",
+    "AVAXUSDT": BinanceContract(
+        symbol="AVAXUSDT",
         market_type="perp",
         tick_size=0.001,
         step_size=1.0,
@@ -86,6 +70,46 @@ _PERP_REGISTRY: dict[str, BinanceContract] = {
         step_size=0.01,
         min_notional=5.0,
         leverage_max=75,
+    ),
+    "BTCUSDT": BinanceContract(
+        symbol="BTCUSDT",
+        market_type="perp",
+        tick_size=0.1,
+        step_size=0.001,
+        min_notional=5.0,
+        leverage_max=125,
+    ),
+    "DOGEUSDT": BinanceContract(
+        symbol="DOGEUSDT",
+        market_type="perp",
+        tick_size=0.00001,
+        step_size=1.0,
+        min_notional=5.0,
+        leverage_max=25,
+    ),
+    "ETHUSDT": BinanceContract(
+        symbol="ETHUSDT",
+        market_type="perp",
+        tick_size=0.01,
+        step_size=0.001,
+        min_notional=5.0,
+        leverage_max=100,
+    ),
+    "LINKUSDT": BinanceContract(
+        symbol="LINKUSDT",
+        market_type="perp",
+        tick_size=0.001,
+        step_size=0.01,
+        min_notional=20.0,
+        leverage_max=50,
+    ),
+    "SOLUSDT": BinanceContract(
+        symbol="SOLUSDT",
+        market_type="perp",
+        tick_size=0.001,
+        step_size=1.0,
+        min_notional=5.0,
+        leverage_max=50,
     ),
     "XRPUSDT": BinanceContract(
         symbol="XRPUSDT",

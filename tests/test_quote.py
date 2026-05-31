@@ -648,7 +648,6 @@ class TestHandleUserEvent:
 
     def test_handle_user_event_parses_per_fill_fields(self) -> None:
         """executionReport 的 l/x/t 解析進 BinanceFillReport。"""
-        from unittest.mock import MagicMock
         from binance_shioaji_sdk.quote import Quote
         q = Quote(_FakeClient(api_key="k"))
         captured = []
@@ -667,7 +666,6 @@ class TestHandleUserEvent:
 
     def test_handle_user_event_new_event_zero_last_qty(self) -> None:
         """NEW 事件(掛單) l 缺/0 → last_qty=0.0, exec_type=NEW。"""
-        from unittest.mock import MagicMock
         from binance_shioaji_sdk.quote import Quote
         q = Quote(_FakeClient(api_key="k"))
         captured = []
@@ -685,7 +683,8 @@ class TestHandleUserEvent:
 @pytest.mark.asyncio
 async def test_user_stream_task_crash_logs_critical(caplog):
     """WS task 因非斷線例外退出 → CRITICAL log,不靜默(HIGH-2)。"""
-    import asyncio, logging
+    import asyncio
+    import logging
     from unittest.mock import MagicMock, patch, AsyncMock
     from binance_shioaji_sdk.quote import Quote
     client = MagicMock()

@@ -178,6 +178,10 @@ class _FakeRest:
         self.calls.append({"method": "GET", "path": path, "params": params, "signed": signed})
         return self._responses[("GET", path)].pop(0)
 
+    async def post(self, path: str, params=None, signed: bool = False, weight: int = 1):
+        self.calls.append({"method": "POST", "path": path, "params": params, "signed": signed})
+        return self._responses[("POST", path)].pop(0)
+
 
 def _make_connected_bn(rest: _FakeRest) -> "Binance":
     """Construct a Binance instance + skip login, inject fake REST."""
@@ -442,3 +446,79 @@ async def test_place_order_raises_on_filled_with_zero_price():
     ):
         with pytest.raises(BinanceAccountError, match="FILLED with zero price"):
             await bn.place_order(contract, order)
+
+
+# ── set_leverage / set_margin_type (vendor-specific futures setup) ───────
+
+
+@pytest.mark.asyncio
+async def test_set_leverage_returns_confirmed_value():
+    rest = _FakeRest()
+    rest.queue("POST", "/fapi/v1/leverage",
+               {"leverage": 10, "symbol": "BTCUSDT", "maxNotionalValue": "1000000"})
+    bn = _make_connected_bn(rest)
+    out = await bn.set_leverage("BTCUSDT", 10)
+    assert out == 10
+    sent = rest.calls[0]
+    assert sent["path"] == "/fapi/v1/leverage"
+    assert sent["params"] == {"symbol": "BTCUSDT", "leverage": 10}
+    assert sent["signed"] is True
+
+
+@pytest.mark.asyncio
+async def test_set_leverage_rejects_non_positive():
+    bn = _make_connected_bn(_FakeRest())
+    with pytest.raises(ValueError, match="positive"):
+        await bn.set_leverage("BTCUSDT", 0)
+
+
+@pytest.mark.asyncio
+async def test_set_leverage_raises_on_rest_error():
+    from binance_shioaji_sdk import BinanceAccountError
+    rest = _FakeRest()
+    rest.queue("POST", "/fapi/v1/leverage",
+               {"error": "HTTP 400", "detail": {"code": -4028, "msg": "leverage too high"}})
+    bn = _make_connected_bn(rest)
+    with pytest.raises(BinanceAccountError, match="set_leverage"):
+        await bn.set_leverage("BTCUSDT", 999)
+
+
+@pytest.mark.asyncio
+async def test_set_margin_type_ok_on_success():
+    rest = _FakeRest()
+    rest.queue("POST", "/fapi/v1/marginType", {"code": 200, "msg": "success"})
+    bn = _make_connected_bn(rest)
+    out = await bn.set_margin_type("BTCUSDT", "ISOLATED")
+    assert out == "ok"
+    sent = rest.calls[0]
+    assert sent["path"] == "/fapi/v1/marginType"
+    assert sent["params"] == {"symbol": "BTCUSDT", "marginType": "ISOLATED"}
+
+
+@pytest.mark.asyncio
+async def test_set_margin_type_treats_4046_as_already_set():
+    """Binance -4046 ('No need to change margin type') is idempotent success."""
+    rest = _FakeRest()
+    rest.queue("POST", "/fapi/v1/marginType",
+               {"error": "HTTP 400", "detail": {"code": -4046, "msg": "No need to change margin type."}})
+    bn = _make_connected_bn(rest)
+    out = await bn.set_margin_type("BTCUSDT", "ISOLATED")
+    assert out == "already-set"
+
+
+@pytest.mark.asyncio
+async def test_set_margin_type_raises_on_other_error():
+    from binance_shioaji_sdk import BinanceAccountError
+    rest = _FakeRest()
+    rest.queue("POST", "/fapi/v1/marginType",
+               {"error": "HTTP 400", "detail": {"code": -1121, "msg": "Invalid symbol."}})
+    bn = _make_connected_bn(rest)
+    with pytest.raises(BinanceAccountError, match="set_margin_type"):
+        await bn.set_margin_type("BOGUSUSDT", "ISOLATED")
+
+
+@pytest.mark.asyncio
+async def test_set_margin_type_rejects_invalid_mode():
+    bn = _make_connected_bn(_FakeRest())
+    with pytest.raises(ValueError, match="ISOLATED.*CROSSED"):
+        await bn.set_margin_type("BTCUSDT", "WEIRD")

@@ -418,6 +418,72 @@ class Binance:
         """
         return await list_trades_via(self._require_rest(), symbol=symbol, limit=limit)
 
+    # ── Vendor-specific futures setup (no shioaji equivalent) ─────────────
+
+    async def set_leverage(self, symbol: str, leverage: int) -> int:
+        """Set initial leverage for a symbol (POST /fapi/v1/leverage).
+
+        Pure-Binance vendor method — Shioaji TW futures have fixed
+        exchange-set margin (no adjustable leverage). One-time session
+        setup before first place_order.
+
+        Returns the broker-confirmed leverage. Raises BinanceAccountError on
+        REST failure (e.g. leverage out of the symbol's allowed range).
+        """
+        from binance_shioaji_sdk.exceptions import BinanceAccountError
+
+        if leverage <= 0:
+            raise ValueError(f"[Binance] leverage must be positive, got {leverage}")
+        rest = self._require_rest()
+        raw = await rest.post(
+            "/fapi/v1/leverage",
+            params={"symbol": symbol, "leverage": leverage},
+            signed=True,
+        )
+        if isinstance(raw, dict) and "error" in raw:
+            logger.warning("[Binance] set_leverage failed: %s", raw)
+            raise BinanceAccountError(f"set_leverage {symbol}={leverage} REST failed: {raw}")
+        try:
+            return int(raw["leverage"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BinanceAccountError(
+                f"set_leverage {symbol}: unexpected response shape: {raw!r}"
+            ) from exc
+
+    async def set_margin_type(self, symbol: str, margin_type: str = "ISOLATED") -> str:
+        """Set margin mode for a symbol (POST /fapi/v1/marginType).
+
+        Pure-Binance vendor method (no shioaji equivalent). One-time session
+        setup. margin_type: 'ISOLATED' | 'CROSSED'.
+
+        Binance returns error code -4046 ("No need to change margin type")
+        when the symbol is already on the requested mode — treated as success
+        (idempotent setup). Returns 'ok' on change, 'already-set' on -4046.
+        Raises BinanceAccountError on any other failure.
+        """
+        from binance_shioaji_sdk.exceptions import BinanceAccountError
+
+        if margin_type not in ("ISOLATED", "CROSSED"):
+            raise ValueError(
+                f"[Binance] margin_type must be 'ISOLATED' or 'CROSSED', got {margin_type!r}"
+            )
+        rest = self._require_rest()
+        raw = await rest.post(
+            "/fapi/v1/marginType",
+            params={"symbol": symbol, "marginType": margin_type},
+            signed=True,
+        )
+        if isinstance(raw, dict) and "error" in raw:
+            detail = raw.get("detail")
+            code = detail.get("code") if isinstance(detail, dict) else None
+            if code == -4046:
+                return "already-set"
+            logger.warning("[Binance] set_margin_type failed: %s", raw)
+            raise BinanceAccountError(
+                f"set_margin_type {symbol}={margin_type} REST failed: {raw}"
+            )
+        return "ok"
+
     # ── Helpers ──────────────────────────────────────────────────────────
 
     def _require_rest(self) -> BinanceRestClient:

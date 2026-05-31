@@ -646,6 +646,41 @@ class TestHandleUserEvent:
             }
         )
 
+    def test_handle_user_event_parses_per_fill_fields(self) -> None:
+        """executionReport 的 l/x/t 解析進 BinanceFillReport。"""
+        from unittest.mock import MagicMock
+        from binance_shioaji_sdk.quote import Quote
+        q = Quote(_FakeClient(api_key="k"))
+        captured = []
+        q._user_stream_callbacks.append(captured.append)
+        q._handle_user_event({
+            "e": "executionReport", "i": 12345, "s": "BTCUSDT",
+            "X": "PARTIALLY_FILLED", "S": "BUY", "o": "LIMIT",
+            "q": "0.001", "z": "0.0003", "L": "65000", "ap": "65000",
+            "l": "0.0003", "x": "TRADE", "t": 999,
+        })
+        assert len(captured) == 1
+        r = captured[0]
+        assert r.last_qty == 0.0003
+        assert r.exec_type == "TRADE"
+        assert r.trade_id == "999"
+
+    def test_handle_user_event_new_event_zero_last_qty(self) -> None:
+        """NEW 事件(掛單) l 缺/0 → last_qty=0.0, exec_type=NEW。"""
+        from unittest.mock import MagicMock
+        from binance_shioaji_sdk.quote import Quote
+        q = Quote(_FakeClient(api_key="k"))
+        captured = []
+        q._user_stream_callbacks.append(captured.append)
+        q._handle_user_event({
+            "e": "executionReport", "i": 1, "s": "BTCUSDT", "X": "NEW",
+            "S": "BUY", "o": "LIMIT", "q": "0.001", "z": "0",
+            "L": "0", "ap": "0", "x": "NEW",
+        })
+        assert captured[0].last_qty == 0.0
+        assert captured[0].exec_type == "NEW"
+        assert captured[0].trade_id == ""
+
 
 # ---------------------------------------------------------------------------
 # Migrated from upstream TestWaitFill — terminal-state rendezvous

@@ -506,6 +506,9 @@ class Quote:
                 filled_qty=float(msg.get("z", 0) or 0),
                 last_filled_price=float(msg.get("L", 0) or 0),
                 avg_price=float(msg.get("ap", 0) or 0),
+                last_qty=float(msg.get("l", 0) or 0),
+                exec_type=msg.get("x", ""),
+                trade_id=str(msg.get("t", "")) if msg.get("t") is not None else "",
                 raw=msg,
             )
         except (KeyError, TypeError, ValueError) as exc:

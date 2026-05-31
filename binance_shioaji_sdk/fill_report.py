@@ -60,4 +60,7 @@ class BinanceFillReport:
     filled_qty: float    # 已成交量（累計）
     last_filled_price: float  # 最後成交均價
     avg_price: float     # 整單均價
+    last_qty: float = 0.0   # 本筆成交量 (executionReport `l` = lastFilledQty); 0.0 if 非成交
+    exec_type: str = ""     # 本次執行類型 (executionReport `x`): NEW|TRADE|CANCELED|EXPIRED|...
+    trade_id: str = ""      # 本筆成交流水號 (executionReport `t`); "" if 非成交
     raw: dict = field(default_factory=dict)

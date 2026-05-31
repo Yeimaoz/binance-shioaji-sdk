@@ -646,6 +646,61 @@ class TestHandleUserEvent:
             }
         )
 
+    def test_handle_user_event_parses_per_fill_fields(self) -> None:
+        """executionReport 的 l/x/t 解析進 BinanceFillReport。"""
+        from binance_shioaji_sdk.quote import Quote
+        q = Quote(_FakeClient(api_key="k"))
+        captured = []
+        q._user_stream_callbacks.append(captured.append)
+        q._handle_user_event({
+            "e": "executionReport", "i": 12345, "s": "BTCUSDT",
+            "X": "PARTIALLY_FILLED", "S": "BUY", "o": "LIMIT",
+            "q": "0.001", "z": "0.0003", "L": "65000", "ap": "65000",
+            "l": "0.0003", "x": "TRADE", "t": 999,
+        })
+        assert len(captured) == 1
+        r = captured[0]
+        assert r.last_qty == 0.0003
+        assert r.exec_type == "TRADE"
+        assert r.trade_id == "999"
+
+    def test_handle_user_event_new_event_zero_last_qty(self) -> None:
+        """NEW 事件(掛單) l 缺/0 → last_qty=0.0, exec_type=NEW。"""
+        from binance_shioaji_sdk.quote import Quote
+        q = Quote(_FakeClient(api_key="k"))
+        captured = []
+        q._user_stream_callbacks.append(captured.append)
+        q._handle_user_event({
+            "e": "executionReport", "i": 1, "s": "BTCUSDT", "X": "NEW",
+            "S": "BUY", "o": "LIMIT", "q": "0.001", "z": "0",
+            "L": "0", "ap": "0", "x": "NEW",
+        })
+        assert captured[0].last_qty == 0.0
+        assert captured[0].exec_type == "NEW"
+        assert captured[0].trade_id == ""
+
+
+@pytest.mark.asyncio
+async def test_user_stream_task_crash_logs_critical(caplog):
+    """WS task 因非斷線例外退出 → CRITICAL log,不靜默(HIGH-2)。"""
+    import asyncio
+    import logging
+    from unittest.mock import MagicMock, patch, AsyncMock
+    from binance_shioaji_sdk.quote import Quote
+    client = MagicMock()
+    client.api_key = "k"
+    q = Quote(client)
+    async def _boom():
+        raise RuntimeError("ws boom")
+    with patch.object(q, "_run_user_stream", _boom), \
+         patch.object(q, "_create_listen_key", new=AsyncMock(return_value="lk")), \
+         patch.object(q, "_run_listen_key_keepalive", new=AsyncMock(return_value=None)):
+        with caplog.at_level(logging.CRITICAL):
+            await q.subscribe_user_stream(lambda r: None)
+            await asyncio.sleep(0.05)
+    assert any("user stream task" in rec.message.lower() and rec.levelno >= logging.CRITICAL
+               for rec in caplog.records), f"no CRITICAL log; records={[r.message for r in caplog.records]}"
+
 
 # ---------------------------------------------------------------------------
 # Migrated from upstream TestWaitFill — terminal-state rendezvous

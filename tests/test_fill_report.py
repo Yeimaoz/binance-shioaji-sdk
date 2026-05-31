@@ -48,3 +48,25 @@ def test_class_docstring_mentions_vocabulary_exemption():
     assert "H-1" in doc or "§3.7" in doc or "vocabulary exemption" in doc, (
         "Class docstring must reference H-1 vocabulary exemption or §3.7"
     )
+
+
+def test_fill_report_has_per_fill_fields_with_defaults():
+    """v0.5.3: per-fill 欄位 (last_qty/exec_type/trade_id) 有 default — 向下相容。"""
+    from binance_shioaji_sdk.fill_report import BinanceFillReport
+    r = BinanceFillReport(
+        order_id="1", symbol="BTCUSDT", status="FILLED", side="BUY",
+        order_type="MARKET", qty=0.001, filled_qty=0.001,
+        last_filled_price=65000.0, avg_price=65000.0,
+    )
+    assert r.last_qty == 0.0
+    assert r.exec_type == ""
+    assert r.trade_id == ""
+    r2 = BinanceFillReport(
+        order_id="1", symbol="BTCUSDT", status="PARTIALLY_FILLED", side="BUY",
+        order_type="LIMIT", qty=0.001, filled_qty=0.0005,
+        last_filled_price=65000.0, avg_price=65000.0,
+        last_qty=0.0005, exec_type="TRADE", trade_id="999",
+    )
+    assert r2.last_qty == 0.0005
+    assert r2.exec_type == "TRADE"
+    assert r2.trade_id == "999"

@@ -109,13 +109,16 @@ async def test_global_tick_callback_path(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(global_seen) == 1
     assert global_seen[0][0] == "SOLUSDT"
 
-    # Book ticker also fires global cb (with mid price)
+    # Book ticker also fires global cb (with mid price and ns timestamp)
     await q.subscribe(_FakeContract("SOL"), "bookticker", lambda *a: None)
-    q._dispatch_book_ticker({"s": "SOLUSDT", "b": "99.0", "a": "101.0", "B": "5", "A": "7"})
+    q._dispatch_book_ticker({"s": "SOLUSDT", "b": "99.0", "a": "101.0", "B": "5", "A": "7", "T": 1700000000000})
     assert len(global_seen) == 2
-    sym, mid, mid2 = global_seen[1]
+    sym, mid, ts_ns = global_seen[1]
     assert sym == "SOLUSDT"
     assert mid == 100.0
+    # third arg must be ns timestamp (not a price)
+    assert ts_ns == 1700000000000 * 1_000_000
+    assert ts_ns > 1_000_000_000_000_000_000  # sanity: ~year 2023 in ns
 
 
 @pytest.mark.asyncio

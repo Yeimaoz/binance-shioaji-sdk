@@ -113,6 +113,34 @@ async def test_place_order_via_market_happy_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_place_order_via_fractional_quantity_preserves_precision() -> None:
+    """Fractional sizes (e.g. 0.001 BTC) must survive Decimal → wire str
+    without float rounding. Regression for Order.quantity int → Decimal."""
+    from decimal import Decimal
+
+    from binance_shioaji_sdk.order import Order, place_order_via
+
+    rest = _FakeRest()
+    rest.queue(
+        "POST",
+        "/fapi/v1/order",
+        {"orderId": 11, "clientOrderId": "frac", "status": "NEW",
+         "avgPrice": "0", "executedQty": "0"},
+    )
+    order = Order(
+        price=50000.0,
+        quantity=Decimal("0.001"),
+        action="long",
+        price_type="LMT",
+    )
+    await place_order_via(rest, _FakeContract("BTCUSDT"), order)
+
+    sent = rest.calls[0]["params"]
+    # exact string — no float artefact like "0.0010000000000000000208"
+    assert sent["quantity"] == "0.001"
+
+
+@pytest.mark.asyncio
 async def test_place_order_via_limit_carries_price_and_tif() -> None:
     from binance_shioaji_sdk.order import Order, place_order_via
 

@@ -28,6 +28,7 @@ pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.4.0
 
 ```python
 import asyncio
+from decimal import Decimal
 from binance_shioaji_sdk import Binance
 
 async def main():
@@ -38,7 +39,7 @@ async def main():
     contract = api.Contracts.Perp["BTCUSDT"]
 
     # Same Order construction
-    order = api.Order(price=50000, quantity=1, action="long", price_type="LMT")
+    order = api.Order(price=50000, quantity=Decimal("0.001"), action="long", price_type="LMT")
     trade = await api.place_order(contract, order)   # → BinanceTrade composite
     print(f"order_id: {trade.status.id}")              # mirrors sj.Trade.status.id
     print(f"status:   {trade.status.status}")          # BinanceOrderStatusEnum.Submitted

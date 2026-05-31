@@ -17,6 +17,7 @@ Logic adapted from an upstream shioaji-style broker adapter
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -36,7 +37,8 @@ class Order:
     Attributes
     ----------
     price          : limit price (ignored when price_type='MKT')
-    quantity       : order size (in contracts; integer for parity with shioaji)
+    quantity       : order size in contracts; Decimal to support fractional sizes
+                     (e.g. 0.001 BTC). Mirror of BinanceFuturePosition.quantity.
     action         : 'long' (BUY) or 'short' (SELL)
     price_type     : 'MKT' or 'LMT'
     reduce_only    : Binance reduceOnly flag (close-only orders)
@@ -45,7 +47,7 @@ class Order:
     """
 
     price: float
-    quantity: int
+    quantity: Decimal
     action: str  # 'long' | 'short'
     price_type: str  # 'MKT' | 'LMT'
     reduce_only: bool = False

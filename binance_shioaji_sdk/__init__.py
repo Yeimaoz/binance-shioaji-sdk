@@ -15,7 +15,11 @@ Public API:
     print(trade.status.id)                            # broker order id (mirrors sj.Trade.status.id)
     await api.logout()
 """
-__version__ = "0.5.0"
+try:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError as _PackageNotFoundError
+    __version__ = _pkg_version("binance-shioaji-sdk")
+except _PackageNotFoundError:  # package not installed (e.g. running from source without pip install)
+    __version__ = "0.5.1"
 
 # v0.4.0 dataclass returns + exception hierarchy.
 from binance_shioaji_sdk.exceptions import (

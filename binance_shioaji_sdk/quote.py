@@ -348,8 +348,9 @@ class Quote:
 
         if self._global_tick_callback is not None:
             mid = (bid + ask) / 2.0
+            ts_ns = int(data.get("T", 0)) * 1_000_000  # transaction time ms -> ns
             try:
-                self._global_tick_callback(sym, mid, mid)
+                self._global_tick_callback(sym, mid, ts_ns)
             except Exception as exc:
                 logger.warning("[Quote] global tick callback error: %s", exc)
 

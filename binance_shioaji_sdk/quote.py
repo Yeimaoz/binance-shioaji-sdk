@@ -199,7 +199,20 @@ class Quote:
         self._listen_key = listen_key
 
         self._user_stream_task = asyncio.create_task(self._run_user_stream())
+        self._user_stream_task.add_done_callback(self._on_user_stream_done)
         self._listen_key_task = asyncio.create_task(self._run_listen_key_keepalive())
+
+    def _on_user_stream_done(self, task: asyncio.Task) -> None:
+        """HIGH-2: user stream task 退出時 surface 結果。正常 stop 不吵;
+        非預期例外記 CRITICAL(否則只有 GC 時 'Future exception never retrieved')。"""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.critical(
+                "[Quote] user stream task crashed — fill stream DOWN: %s",
+                exc, exc_info=exc,
+            )
 
     async def wait_fill(
         self,

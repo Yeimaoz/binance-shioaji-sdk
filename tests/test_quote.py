@@ -682,6 +682,27 @@ class TestHandleUserEvent:
         assert captured[0].trade_id == ""
 
 
+@pytest.mark.asyncio
+async def test_user_stream_task_crash_logs_critical(caplog):
+    """WS task 因非斷線例外退出 → CRITICAL log,不靜默(HIGH-2)。"""
+    import asyncio, logging
+    from unittest.mock import MagicMock, patch, AsyncMock
+    from binance_shioaji_sdk.quote import Quote
+    client = MagicMock()
+    client.api_key = "k"
+    q = Quote(client)
+    async def _boom():
+        raise RuntimeError("ws boom")
+    with patch.object(q, "_run_user_stream", _boom), \
+         patch.object(q, "_create_listen_key", new=AsyncMock(return_value="lk")), \
+         patch.object(q, "_run_listen_key_keepalive", new=AsyncMock(return_value=None)):
+        with caplog.at_level(logging.CRITICAL):
+            await q.subscribe_user_stream(lambda r: None)
+            await asyncio.sleep(0.05)
+    assert any("user stream task" in rec.message.lower() and rec.levelno >= logging.CRITICAL
+               for rec in caplog.records), f"no CRITICAL log; records={[r.message for r in caplog.records]}"
+
+
 # ---------------------------------------------------------------------------
 # Migrated from upstream TestWaitFill — terminal-state rendezvous
 # ---------------------------------------------------------------------------

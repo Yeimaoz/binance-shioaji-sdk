@@ -97,8 +97,100 @@ class TestWSBaseURL:
             sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
-        assert captured_urls[0].startswith("wss://stream.binancefuture.com/stream"), (
-            f"testnet base_url 沒被使用，實際 URL={captured_urls[0]}"
+        assert captured_urls[0].startswith("wss://stream.binancefuture.com/market/stream"), (
+            f"testnet base_url 沒被使用或缺少 /market/ prefix，實際 URL={captured_urls[0]}"
+        )
+
+    async def test_combined_stream_url_has_market_prefix(self) -> None:
+        """run_combined_stream 的 URL 必須含 /market/ prefix（2024-02-29 Binance 新 API）。
+
+        舊 URL /stream?streams=... 握手成功但 Binance 靜默不推資料；
+        新 URL /market/stream?streams=... 才能收到 market data。
+        """
+        import sys
+        import types
+
+        captured_urls: list[str] = []
+
+        class _FakeCtx:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+            def __aiter__(self): return self
+            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
+
+        sys.modules["websockets"] = types.SimpleNamespace(
+            connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
+        )
+        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
+            ConnectionClosedError=type("CCE", (Exception,), {}),
+            ConnectionClosedOK=type("CCO", (Exception,), {}),
+        )
+        stop_evt = asyncio.Event()
+        ws = BinanceWSManager(base_url="wss://fstream.binance.com")
+        try:
+            await asyncio.wait_for(
+                ws.run_combined_stream(
+                    streams=["dogeusdt@markPrice"],
+                    on_message=lambda d: None,
+                    stop_event=stop_evt,
+                    max_attempts=1,
+                ),
+                timeout=2.0,
+            )
+        finally:
+            sys.modules.pop("websockets", None)
+            sys.modules.pop("websockets.exceptions", None)
+
+        assert captured_urls, "websockets.connect 必須被呼叫"
+        assert "/market/stream" in captured_urls[0], (
+            f"URL 缺少 /market/ prefix（Binance 2024-02-29 新路徑），實際={captured_urls[0]}"
+        )
+
+    async def test_user_stream_url_has_private_prefix(self) -> None:
+        """run_user_stream 的 URL 必須含 /private/ prefix（2024-02-29 Binance 新 API）。
+
+        舊 URL /ws/{listenKey} 握手成功但 Binance 靜默不推 ORDER_TRADE_UPDATE；
+        新 URL /private/ws/{listenKey} 才能收到 user data events。
+        """
+        import sys
+        import types
+
+        captured_urls: list[str] = []
+
+        class _FakeCtx:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+            def __aiter__(self): return self
+            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
+
+        sys.modules["websockets"] = types.SimpleNamespace(
+            connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
+        )
+        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
+            ConnectionClosedError=type("CCE", (Exception,), {}),
+            ConnectionClosedOK=type("CCO", (Exception,), {}),
+        )
+        stop_evt = asyncio.Event()
+        ws = BinanceWSManager(base_url="wss://fstream.binance.com")
+        try:
+            await asyncio.wait_for(
+                ws.run_user_stream(
+                    get_listen_key=AsyncMock(return_value="test-listen-key"),
+                    on_message=lambda d: None,
+                    stop_event=stop_evt,
+                ),
+                timeout=2.0,
+            )
+        finally:
+            sys.modules.pop("websockets", None)
+            sys.modules.pop("websockets.exceptions", None)
+
+        assert captured_urls, "websockets.connect 必須被呼叫"
+        assert "/private/ws?" in captured_urls[0] and "listenKey=" in captured_urls[0], (
+            f"URL 格式錯誤（應為 /private/ws?listenKey=...），實際={captured_urls[0]}"
+        )
+        assert "events=ORDER_TRADE_UPDATE" in captured_urls[0], (
+            f"URL 缺少 events=ORDER_TRADE_UPDATE 參數，實際={captured_urls[0]}"
         )
 
 

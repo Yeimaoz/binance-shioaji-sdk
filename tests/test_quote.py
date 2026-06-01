@@ -607,6 +607,69 @@ class TestHandleUserEvent:
         assert "111" in q._execution_reports
         assert q._execution_reports["111"].status == "NEW"
 
+    def test_order_trade_update_futures_format_parsed(self) -> None:
+        """ORDER_TRADE_UPDATE（Binance USDM futures）格式解析正確。
+
+        舊實作只認 executionReport（SPOT），欄位在 msg 頂層。
+        Futures 送 ORDER_TRADE_UPDATE，欄位在 msg['o'] 底下。
+        2024-02-29 API 遷移後 fill stream 靜默不收就是這兩個 bug 疊加。
+        """
+        from binance_shioaji_sdk.quote import Quote
+
+        q = Quote(_FakeClient(api_key="k"))
+        received = []
+        q._user_stream_callbacks.append(received.append)
+
+        q._handle_user_event({
+            "e": "ORDER_TRADE_UPDATE",
+            "T": 1700000000000,
+            "E": 1700000000001,
+            "o": {
+                "s": "DOGEUSDT",
+                "i": 98765,
+                "S": "BUY",
+                "o": "MARKET",
+                "X": "FILLED",
+                "x": "TRADE",
+                "q": "100",
+                "z": "100",
+                "L": "0.10050",
+                "ap": "0.10050",
+                "l": "100",
+                "t": 555,
+            },
+        })
+
+        assert len(received) == 1, "callback 應被呼叫一次"
+        r = received[0]
+        assert r.symbol == "DOGEUSDT"
+        assert r.order_id == "98765"
+        assert r.status == "FILLED"
+        assert r.exec_type == "TRADE"
+        assert r.last_filled_price == pytest.approx(0.10050)
+        assert r.last_qty == pytest.approx(100.0)
+        assert "98765" in q._execution_reports
+
+    def test_order_trade_update_non_trade_exec_type_still_stored(self) -> None:
+        """ORDER_TRADE_UPDATE の exec_type=NEW は callback に届くが fill_cb は通らない。"""
+        from binance_shioaji_sdk.quote import Quote
+
+        q = Quote(_FakeClient(api_key="k"))
+        received = []
+        q._user_stream_callbacks.append(received.append)
+
+        q._handle_user_event({
+            "e": "ORDER_TRADE_UPDATE",
+            "T": 1700000000000, "E": 1700000000001,
+            "o": {
+                "s": "DOGEUSDT", "i": 12345, "S": "BUY", "o": "LIMIT",
+                "X": "NEW", "x": "NEW",
+                "q": "100", "z": "0", "L": "0", "ap": "0", "l": "0", "t": 0,
+            },
+        })
+        assert len(received) == 1
+        assert received[0].status == "NEW"
+
     def test_callback_exception_does_not_crash(self) -> None:
         from binance_shioaji_sdk.quote import Quote
 

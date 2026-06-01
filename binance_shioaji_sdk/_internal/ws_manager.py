@@ -176,7 +176,7 @@ class BinanceWSManager:
                 await asyncio.sleep(1.0)
                 continue
 
-            url = f"{self.base_url.rstrip('/')}/stream?streams={'/'.join(streams)}"
+            url = f"{self.base_url.rstrip('/')}/market/stream?streams={'/'.join(streams)}"
             logger.info("%s WS 連接: %d streams (base=%s)", log_prefix, len(streams), self.base_url)
 
             try:
@@ -232,6 +232,7 @@ class BinanceWSManager:
         *,
         log_prefix: str = "[BinanceWSManager]",
         clear_listen_key_on_disconnect: Callable[[], None] | None = None,
+        on_connected: Callable[[], None] | None = None,
     ) -> None:
         """User data stream 接收迴圈（特別處理：斷線後 listenKey 失效，需重取）。
 
@@ -256,7 +257,10 @@ class BinanceWSManager:
                 logger.error("%s 無法取得 listenKey，停止重連", log_prefix)
                 break
 
-            url = f"{self.base_url.rstrip('/')}/ws/{listen_key}"
+            url = (
+                f"{self.base_url.rstrip('/')}/private/ws"
+                f"?listenKey={listen_key}&events=ORDER_TRADE_UPDATE"
+            )
             logger.info("%s WS 連接 (attempt %d, base=%s)", log_prefix, attempt, self.base_url)
 
             try:
@@ -268,6 +272,8 @@ class BinanceWSManager:
                 ) as ws:
                     attempt = 0
                     logger.info("%s WS 已連接", log_prefix)
+                    if on_connected is not None:
+                        on_connected()
                     async for raw in ws:
                         if stop_event.is_set():
                             break

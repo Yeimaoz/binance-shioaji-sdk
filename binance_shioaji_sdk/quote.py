@@ -109,6 +109,7 @@ class Quote:
         self._listen_key: str | None = None
         self._execution_reports: dict[str, BinanceFillReport] = {}
         self._fill_events: dict[str, asyncio.Event] = {}
+        self._user_stream_connected: asyncio.Event = asyncio.Event()
 
         # Lazy-import websockets manager — 從 client 拿 ws base URL（mainnet vs testnet）
         ws_base = getattr(client, "_ws_base_url", None) or "wss://fstream.binance.com"
@@ -180,8 +181,18 @@ class Quote:
     async def subscribe_user_stream(
         self,
         callback: Callable[[BinanceFillReport], Any],
+        *,
+        wait_ready: bool = False,
+        ready_timeout: float = 10.0,
     ) -> None:
-        """Subscribe to userDataStream (order events). Requires api_key."""
+        """Subscribe to userDataStream (order events). Requires api_key.
+
+        Args:
+            wait_ready: If True, await until the WS is actually connected before
+                returning. Use this before placing orders to avoid the race where
+                a fast fill arrives before the WS handshake completes.
+            ready_timeout: Max seconds to wait for WS ready (default 10s).
+        """
         api_key = getattr(self._client, "api_key", None)
         if not api_key:
             logger.warning("[Quote] subscribe_user_stream: api_key not set, skip")
@@ -190,6 +201,8 @@ class Quote:
         self._user_stream_callbacks.append(callback)
 
         if self._user_stream_task and not self._user_stream_task.done():
+            if wait_ready:
+                await asyncio.wait_for(self._user_stream_connected.wait(), timeout=ready_timeout)
             return
 
         listen_key = await self._create_listen_key()
@@ -198,9 +211,13 @@ class Quote:
             return
         self._listen_key = listen_key
 
+        self._user_stream_connected.clear()
         self._user_stream_task = asyncio.create_task(self._run_user_stream())
         self._user_stream_task.add_done_callback(self._on_user_stream_done)
         self._listen_key_task = asyncio.create_task(self._run_listen_key_keepalive())
+
+        if wait_ready:
+            await asyncio.wait_for(self._user_stream_connected.wait(), timeout=ready_timeout)
 
     def _on_user_stream_done(self, task: asyncio.Task) -> None:
         """HIGH-2: user stream task 退出時 surface 結果。正常 stop 不吵;
@@ -496,36 +513,51 @@ class Quote:
         def _clear() -> None:
             self._listen_key = None
 
+        def _on_connected() -> None:
+            self._user_stream_connected.set()
+
+        def _on_disconnect() -> None:
+            self._user_stream_connected.clear()
+            _clear()
+
         await self._ws_manager.run_user_stream(
             get_listen_key=_get_key,
             on_message=self._handle_user_event,
             stop_event=self._stop_event,
             log_prefix="[Quote.user_stream]",
-            clear_listen_key_on_disconnect=_clear,
+            clear_listen_key_on_disconnect=_on_disconnect,
+            on_connected=_on_connected,
         )
 
     def _handle_user_event(self, msg: dict) -> None:
-        if msg.get("e") != "executionReport":
+        e = msg.get("e")
+        # Binance USDM futures: ORDER_TRADE_UPDATE，欄位在 msg["o"]
+        # Binance SPOT (legacy): executionReport，欄位在 msg 頂層
+        if e == "ORDER_TRADE_UPDATE":
+            fields = msg.get("o", {})
+        elif e == "executionReport":
+            fields = msg
+        else:
             return
         try:
-            order_id = str(msg["i"])
+            order_id = str(fields["i"])
             report = BinanceFillReport(
                 order_id=order_id,
-                symbol=msg.get("s", ""),
-                status=msg.get("X", ""),
-                side=msg.get("S", ""),
-                order_type=msg.get("o", ""),
-                qty=float(msg.get("q", 0) or 0),
-                filled_qty=float(msg.get("z", 0) or 0),
-                last_filled_price=float(msg.get("L", 0) or 0),
-                avg_price=float(msg.get("ap", 0) or 0),
-                last_qty=float(msg.get("l", 0) or 0),
-                exec_type=msg.get("x", ""),
-                trade_id=str(msg.get("t", "")) if msg.get("t") is not None else "",
+                symbol=fields.get("s", ""),
+                status=fields.get("X", ""),
+                side=fields.get("S", ""),
+                order_type=fields.get("o", ""),
+                qty=float(fields.get("q", 0) or 0),
+                filled_qty=float(fields.get("z", 0) or 0),
+                last_filled_price=float(fields.get("L", 0) or 0),
+                avg_price=float(fields.get("ap", 0) or 0),
+                last_qty=float(fields.get("l", 0) or 0),
+                exec_type=fields.get("x", ""),
+                trade_id=str(fields.get("t", "")) if fields.get("t") is not None else "",
                 raw=msg,
             )
         except (KeyError, TypeError, ValueError) as exc:
-            logger.warning("[Quote] executionReport parse error: %s | msg=%s", exc, msg)
+            logger.warning("[Quote] user event parse error: %s | msg=%s", exc, msg)
             return
 
         self._execution_reports[order_id] = report

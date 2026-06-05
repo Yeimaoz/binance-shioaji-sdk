@@ -1,19 +1,11 @@
-"""
-binance_shioaji_sdk/contracts.py — Binance contract specifications
-==============================================================
+"""Patch binance_shioaji_sdk/contracts.py: dynamic exchangeInfo loading (v0.2).
 
-Mirrors shioaji `sj.Contracts.Futures.<key>` dot-access shape:
-  bn.Contracts.Perp["BTCUSDT"] -> BinanceContract
-
-v0.1: hardcoded registry of 8 USDM perpetuals
-      (AVAXUSDT / BNBUSDT / BTCUSDT / DOGEUSDT / ETHUSDT / LINKUSDT / SOLUSDT / XRPUSDT).
-v0.2: dynamic /fapi/v1/exchangeInfo refresh on login — all 500+ USDM perps available.
-      Call ``await bn.Contracts.refresh()`` after ``bn.login()`` to populate the registry.
-
-數值來源：Binance USDM exchangeInfo（截至 2026-05）。Spot 留 v0.3。
+Adds async refresh_from_exchange() to _ContractsNamespace so ALL Binance
+perpetuals are discovered at login time, not just the 8 hardcoded symbols.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator
@@ -27,8 +19,6 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class BinanceContract:
     """Binance USDM perpetual contract spec (frozen).
-
-    Mirrors shioaji.Contracts.Futures item shape — rich object, not raw spec.
 
     Attributes
     ----------
@@ -52,67 +42,32 @@ class BinanceContract:
     leverage_max: int = 125
 
 
-# ---------------------------------------------------------------------------
-# Hardcoded seed registry (v0.1 — guaranteed offline)
-# ---------------------------------------------------------------------------
+# ── Hardcoded seed registry (v0.1 → guaranteed symbols, no network needed) ──
 
-# Keyed by symbol; maps to BinanceContract.
-# tick_size / step_size / min_notional from Binance USDM exchangeInfo (2026-05).
-# This is the SEED — runtime registries copy it on init so refresh() can add
-# more without mutating the module-level constant.
-_PERP_SEED: dict[str, BinanceContract] = {
-    "AVAXUSDT": BinanceContract(
-        symbol="AVAXUSDT", market_type="perp",
-        tick_size=0.001, step_size=1.0, min_notional=5.0, leverage_max=50,
-    ),
-    "BNBUSDT": BinanceContract(
-        symbol="BNBUSDT", market_type="perp",
-        tick_size=0.01, step_size=0.01, min_notional=5.0, leverage_max=75,
-    ),
-    "BTCUSDT": BinanceContract(
-        symbol="BTCUSDT", market_type="perp",
-        tick_size=0.1, step_size=0.001, min_notional=5.0, leverage_max=125,
-    ),
-    "DOGEUSDT": BinanceContract(
-        symbol="DOGEUSDT", market_type="perp",
-        tick_size=0.00001, step_size=1.0, min_notional=5.0, leverage_max=25,
-    ),
-    "ETHUSDT": BinanceContract(
-        symbol="ETHUSDT", market_type="perp",
-        tick_size=0.01, step_size=0.001, min_notional=5.0, leverage_max=100,
-    ),
-    "LINKUSDT": BinanceContract(
-        symbol="LINKUSDT", market_type="perp",
-        tick_size=0.001, step_size=0.01, min_notional=20.0, leverage_max=50,
-    ),
-    "SOLUSDT": BinanceContract(
-        symbol="SOLUSDT", market_type="perp",
-        tick_size=0.001, step_size=1.0, min_notional=5.0, leverage_max=50,
-    ),
-    "XRPUSDT": BinanceContract(
-        symbol="XRPUSDT", market_type="perp",
-        tick_size=0.0001, step_size=1.0, min_notional=5.0, leverage_max=75,
-    ),
+_PER_P_REGISTRY: dict[str, BinanceContract] = {
+    "AVAXUSDT": BinanceContract(symbol="AVAXUSDT", market_type="perp", tick_size=0.001, step_size=1.0, min_notional=5.0, leverage_max=50),
+    "BNBUSDT": BinanceContract(symbol="BNBUSDT", market_type="perp", tick_size=0.01, step_size=0.01, min_notional=5.0, leverage_max=75),
+    "BTCUSDT": BinanceContract(symbol="BTCUSDT", market_type="perp", tick_size=0.1, step_size=0.001, min_notional=5.0, leverage_max=125),
+    "DOGEUSDT": BinanceContract(symbol="DOGEUSDT", market_type="perp", tick_size=0.00001, step_size=1.0, min_notional=5.0, leverage_max=25),
+    "ETHUSDT": BinanceContract(symbol="ETHUSDT", market_type="perp", tick_size=0.01, step_size=0.001, min_notional=5.0, leverage_max=100),
+    "LINKUSDT": BinanceContract(symbol="LINKUSDT", market_type="perp", tick_size=0.001, step_size=0.01, min_notional=20.0, leverage_max=50),
+    "SOLUSDT": BinanceContract(symbol="SOLUSDT", market_type="perp", tick_size=0.001, step_size=1.0, min_notional=5.0, leverage_max=50),
+    "XRPUSDT": BinanceContract(symbol="XRPUSDT", market_type="perp", tick_size=0.0001, step_size=1.0, min_notional=5.0, leverage_max=75),
 }
 
 
-# ---------------------------------------------------------------------------
-# Namespace classes
-# ---------------------------------------------------------------------------
+# ── Namespace classes ──
 
 
 class _ContractsNamespace:
-    """Dict-like namespace for one market_type (e.g. Perp).
-
-    Seed symbols (v0.1) are always available.  Call ``refresh_from_exchange()``
-    once after login to discover all remaining Binance perpetuals.
-    """
+    """Dict-like namespace for one market_type (e.g. Perp)."""
 
     def __init__(self, client: "Binance", market_type: str) -> None:
         self._client = client
         self._market_type = market_type
         if market_type == "perp":
-            self._registry: dict[str, BinanceContract] = dict(_PERP_SEED)
+            # Shallow copy so refresh doesn't mutate the module-level constant.
+            self._registry: dict[str, BinanceContract] = dict(_PER_P_REGISTRY)
         else:
             raise ValueError(
                 f"[Contracts] market_type {market_type!r} not supported; "
@@ -123,13 +78,9 @@ class _ContractsNamespace:
     async def refresh_from_exchange(self) -> int:
         """Discover all trading USDM perpetuals from Binance exchangeInfo.
 
-        Called once after login. Only *adds* symbols not already in the
-        registry (never overwrites the v0.1 seed).  Returns the number of
-        new symbols added.
-
-        Leverage max defaults to 25x (conservative) because exchangeInfo
-        doesn't include it — callers that need exact leverage should fetch
-        ``/fapi/v1/leverageBracket`` separately.
+        Called once after login. Only adds symbols not already in the registry
+        (never overwrites the v0.1 seed).  Returns the number of new symbols
+        added.
         """
         if self._refreshed:
             return 0
@@ -140,26 +91,28 @@ class _ContractsNamespace:
 
         try:
             rest = self._client._require_rest()
-            data = await rest.get("/fapi/v1/exchangeInfo")
+            # exchangeInfo is a public endpoint (no signing needed).
+            url = self._client._base_url + "/fapi/v1/exchangeInfo"
+            resp = await rest._client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
         except Exception as exc:
             logger.warning(
-                "[Contracts] exchangeInfo refresh failed (seed only): %s", exc
+                "[Contracts] exchangeInfo refresh failed (falling back to seed): %s", exc
             )
             return 0
 
-        if not isinstance(data, dict) or "symbols" not in data:
-            logger.warning("[Contracts] exchangeInfo returned unexpected shape")
-            return 0
-
         added = 0
-        for s in data["symbols"]:
+        for s in data.get("symbols", []):
             if s.get("contractType") != "PERPETUAL":
                 continue
             if s.get("status") != "TRADING":
                 continue
             sym = s["symbol"]
+            if not sym.endswith("USDT"):
+                continue  # only USD-margined
             if sym in self._registry:
-                continue
+                continue  # already seeded
 
             # Parse filters
             tick_size = 0.01
@@ -168,19 +121,21 @@ class _ContractsNamespace:
             for f in s.get("filters", []):
                 ft = f.get("filterType", "")
                 if ft == "PRICE_FILTER":
-                    tick_size = float(f.get("tickSize", tick_size))
+                    tick_size = float(f.get("tickSize", 0.01))
                 elif ft == "LOT_SIZE":
-                    step_size = float(f.get("stepSize", step_size))
+                    step_size = float(f.get("stepSize", 1.0))
                 elif ft == "MIN_NOTIONAL":
-                    min_notional = float(f.get("notional", min_notional))
+                    min_notional = float(f.get("notional", 5.0))
 
+            # Leverage: unknown until we fetch brackets — use conservative default.
+            # Small-cap perps typically 20-25x; large-cap up to 125x.
             contract = BinanceContract(
                 symbol=sym,
                 market_type="perp",
                 tick_size=tick_size,
                 step_size=step_size,
                 min_notional=min_notional,
-                leverage_max=25,  # conservative default
+                leverage_max=25,  # conservative; caller can override
             )
             self._registry[sym] = contract
             added += 1
@@ -223,8 +178,6 @@ class Contracts:
     Usage:
         bn.Contracts.Perp["BTCUSDT"]    # -> BinanceContract
         "BTCUSDT" in bn.Contracts.Perp  # -> True
-
-    Spot lookup arrives in v0.3.
     """
 
     def __init__(self, client: "Binance") -> None:

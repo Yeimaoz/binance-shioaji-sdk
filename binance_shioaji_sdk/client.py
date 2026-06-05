@@ -153,6 +153,9 @@ class Binance:
         if self._listen_key and self._listen_key_task is None:
             self._listen_key_task = asyncio.create_task(self._listen_key_keepalive_loop())
 
+        # v0.2: discover all available contracts from exchangeInfo
+        await self.Contracts.refresh()
+
         self._connected = True
         logger.info("[Binance] login OK (testnet=%s)", self.testnet)
 

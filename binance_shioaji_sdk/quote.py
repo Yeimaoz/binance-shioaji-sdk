@@ -275,6 +275,10 @@ class Quote:
                     await asyncio.wait_for(task, timeout=2.0)
                 except (asyncio.TimeoutError, asyncio.CancelledError):
                     task.cancel()
+                    try:
+                        await task
+                    except (asyncio.CancelledError, Exception):
+                        pass
 
     # ── Mark-price WS ─────────────────────────────────────────────────────
 

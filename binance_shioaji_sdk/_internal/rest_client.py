@@ -46,6 +46,7 @@ _ENDPOINT_WEIGHTS: dict[str, int] = {
     "/fapi/v2/positionRisk": 5,
     "/fapi/v1/order": 1,
     "/fapi/v1/allOpenOrders": 1,
+    "/fapi/v1/allOrders": 5,       # weight 5 per Binance USDM Futures docs (symbol required)
     # R4 endpoints
     "/fapi/v1/listenKey": 1,
     "/fapi/v1/openInterest": 1,

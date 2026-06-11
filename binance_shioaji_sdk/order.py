@@ -67,7 +67,7 @@ class OrderResponse:
     client_order_id: str
     symbol: str
     status: str
-    filled_quantity: int = 0
+    filled_quantity: Decimal = Decimal("0")
     avg_filled_price: float | None = None
     raw: dict[str, Any] | None = field(default=None)
 
@@ -145,7 +145,7 @@ async def place_order_via(
     if order.client_order_id:
         params["newClientOrderId"] = order.client_order_id
 
-    raw = await rest_client.post("/fapi/v1/order", params=params, signed=True)
+    raw = await rest_client.post("/fapi/v1/order", params=params, signed=True, idempotent=False)
 
     if isinstance(raw, dict) and "error" in raw:
         return OrderResponse(
@@ -164,9 +164,9 @@ async def place_order_via(
     avg_filled = avg if avg > 0 else None
 
     try:
-        executed_qty = int(float(raw.get("executedQty", "0") or "0"))
-    except (TypeError, ValueError):
-        executed_qty = 0
+        executed_qty = Decimal(str(raw.get("executedQty", "0") or "0"))
+    except (TypeError, ValueError, ArithmeticError):
+        executed_qty = Decimal("0")
 
     return OrderResponse(
         order_id=str(raw.get("orderId", "")),
@@ -233,7 +233,7 @@ async def list_trades_via(
             avg_raw = entry.get("avgPrice", "0") or "0"
             avg = float(avg_raw)
             avg_filled = avg if avg > 0 else None
-            executed_qty = int(float(entry.get("executedQty", "0") or "0"))
+            executed_qty = Decimal(str(entry.get("executedQty", "0") or "0"))
             out.append(
                 OrderResponse(
                     order_id=str(entry.get("orderId", "")),
@@ -245,7 +245,7 @@ async def list_trades_via(
                     raw=entry,
                 )
             )
-        except (TypeError, ValueError, KeyError):
+        except (TypeError, ValueError, KeyError, ArithmeticError):
             continue
     return out
 

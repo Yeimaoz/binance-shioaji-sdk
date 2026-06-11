@@ -37,9 +37,9 @@ class BinanceTradeStatus:
     status: BinanceOrderStatusEnum
     status_code: str
     order_datetime: str                       # ISO 8601 UTC
-    deal_quantity: Optional[int] = None       # cumulative filled qty (Binance: executedQty)
+    deal_quantity: Optional[Decimal] = None    # cumulative filled qty (Binance: executedQty)
     order_quantity: Optional[Decimal] = None  # original submitted qty (Binance: origQty)
-    cancel_quantity: Optional[int] = None     # qty remaining after cancellation
+    cancel_quantity: Optional[Decimal] = None  # qty remaining after cancellation
     modified_price: float = 0.0               # weighted avg fill price (0.0 if no fill)
     msg: str = ""                             # broker message (error reason on failure)
 

@@ -247,32 +247,54 @@ class BinanceRestClient:
         params: dict | None = None,
         signed: bool = False,
         weight: int = 1,
+        idempotent: bool = True,
     ) -> Any:
-        """POST request with rate limit + retry（邏輯同 get）。"""
+        """POST request with rate limit + optional retry.
+
+        Parameters
+        ----------
+        idempotent : bool
+            When True (default), network errors trigger up to 3 retry attempts
+            with exponential backoff — same behaviour as GET.
+            When False, any network error is re-raised immediately without retry.
+            Pass ``idempotent=False`` for non-idempotent endpoints such as
+            ``/fapi/v1/order`` to prevent duplicate-order risk on retransmission.
+
+        Note: for signed requests each retry attempt calls ``self.sign()`` again
+        so the ``timestamp`` in the signature is always fresh.
+        """
         client = self._ensure_client()
         url = self.base_url + path
-        params = params or {}
+        base_params = dict(params or {})
         headers: dict[str, str] = {}
 
         if signed:
             if not self.api_key:
                 logger.warning("[BinanceRestClient] api_key 未設定，跳過 signed POST: %s", path)
                 return {"error": "api_key not set", "path": path}
-            params = self.sign(params)
             headers["X-MBX-APIKEY"] = self.api_key
 
         effective_weight = _ENDPOINT_WEIGHTS.get(path, weight)
         await self._bucket.consume(effective_weight)
 
         for attempt in range(3):
+            # Re-sign on every attempt so the timestamp is always fresh.
+            request_params = self.sign(base_params) if signed else base_params
             try:
-                resp = await client.post(url, params=params, headers=headers)
+                resp = await client.post(url, params=request_params, headers=headers)
                 if resp.status_code >= 400:
                     body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
                     logger.warning("[BinanceRestClient] POST %s -> HTTP %d: %s", path, resp.status_code, body)
                     return {"error": f"HTTP {resp.status_code}", "detail": body}
                 return resp.json()
             except (httpx.HTTPError, httpx.ReadTimeout, OSError) as exc:
+                if not idempotent:
+                    # Non-idempotent: never retry; propagate to caller.
+                    logger.warning(
+                        "[BinanceRestClient] POST %s 網路錯誤（non-idempotent, no retry）: %s",
+                        path, exc,
+                    )
+                    raise
                 wait = 2 ** attempt
                 logger.warning(
                     "[BinanceRestClient] POST %s 網路錯誤（attempt %d/3）: %s，%.1fs 後重試",

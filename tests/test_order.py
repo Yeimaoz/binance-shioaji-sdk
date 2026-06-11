@@ -37,7 +37,7 @@ class _FakeRest:
         self.calls.append({"method": "GET", "path": path, "params": params, "signed": signed})
         return self._next("GET", path)
 
-    async def post(self, path: str, params: dict | None = None, signed: bool = False, weight: int = 1) -> Any:
+    async def post(self, path: str, params: dict | None = None, signed: bool = False, weight: int = 1, idempotent: bool = True) -> Any:
         self.calls.append({"method": "POST", "path": path, "params": params, "signed": signed})
         return self._next("POST", path)
 
@@ -63,6 +63,8 @@ def test_order_dataclass_frozen() -> None:
 
 
 def test_order_response_dataclass() -> None:
+    from decimal import Decimal
+
     from binance_shioaji_sdk.order import OrderResponse
 
     r = OrderResponse(
@@ -70,12 +72,12 @@ def test_order_response_dataclass() -> None:
         client_order_id="cli-1",
         symbol="BTCUSDT",
         status="FILLED",
-        filled_quantity=2,
+        filled_quantity=Decimal("2"),
         avg_filled_price=51000.0,
         raw={"orderId": 123},
     )
     assert r.order_id == "123"
-    assert r.filled_quantity == 2
+    assert r.filled_quantity == Decimal("2")
     assert r.raw == {"orderId": 123}
 
 

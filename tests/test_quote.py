@@ -344,8 +344,10 @@ class TestDispatchBookTicker:
         from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient())
-        # No callback for SOLUSDT; must not raise / log noisily
+        # No callback registered for SOLUSDT — must be a no-op with no state change.
         q._dispatch_book_ticker({"s": "SOLUSDT", "b": "100", "B": "10", "a": "101", "A": "5"})
+        # State invariant: no callbacks were registered, so the registry is still empty.
+        assert q._book_ticker_callbacks == {}
 
 
 class TestDispatchKline:
@@ -579,8 +581,10 @@ class TestHandleUserEvent:
         from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
-        # Missing required "i" -> parse error logged, no raise
+        # Missing required "i" -> parse error logged, no raise.
+        # Verify: no execution report cached (the bad event was discarded).
         q._handle_user_event({"e": "executionReport", "s": "BTCUSDT", "X": "FILLED"})
+        assert q._execution_reports == {}
 
     def test_wrong_event_type_skipped(self) -> None:
         from binance_shioaji_sdk.quote import Quote
@@ -699,7 +703,8 @@ class TestHandleUserEvent:
         from binance_shioaji_sdk.quote import Quote
 
         q = Quote(_FakeClient(api_key="k"))
-        # Terminal status without any wait_fill registered — must not raise
+        # Terminal status without any wait_fill registered.
+        # Verify: the execution report is cached despite no waiter existing.
         q._handle_user_event(
             {
                 "e": "executionReport",
@@ -708,6 +713,8 @@ class TestHandleUserEvent:
                 "q": "0.001", "z": "0.001", "L": "50000", "ap": "50000",
             }
         )
+        assert "9999" in q._execution_reports
+        assert q._execution_reports["9999"].status == "FILLED"
 
     def test_handle_user_event_parses_per_fill_fields(self) -> None:
         """executionReport 的 l/x/t 解析進 BinanceFillReport。"""

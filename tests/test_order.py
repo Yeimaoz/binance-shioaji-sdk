@@ -261,3 +261,38 @@ async def test_list_trades_via_handles_error_payload() -> None:
     rest = _FakeRest()
     rest.queue("GET", "/fapi/v1/allOrders", {"error": "HTTP 401"})
     assert await list_trades_via(rest, "BTC") == []
+
+
+# ---------------------------------------------------------------------------
+# Known-deviation tracker: list_trades_via returns [] on error, but README
+# promises "All methods raise typed exceptions on REST failure (no silent [])"
+# (v0.4.0 migration notes). This xfail documents the spec drift; removing xfail
+# is the acceptance gate for the future migration.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "KNOWN DEVIATION (v0.5.8): list_trades_via silently returns [] on REST "
+        "error, violating the README v0.4.0 contract 'no silent zero-filled "
+        "returns or []'. Fix is blocked on the list_trades return-type migration "
+        "to list[BinanceTrade] (design §3.6). Remove xfail when fixed."
+    ),
+)
+async def test_list_trades_via_error_payload_raises_like_other_methods() -> None:
+    """Deviation tracker: should raise BinanceAccountError, not return [].
+
+    This test MUST STAY xfail until list_trades_via is fixed to raise on error.
+    If it unexpectedly passes, xfail(strict=True) will fail the suite as a
+    reminder to remove both this xfail and the Known Limitations entry in README.
+    """
+    from binance_shioaji_sdk import BinanceAccountError
+    from binance_shioaji_sdk.order import list_trades_via
+
+    rest = _FakeRest()
+    rest.queue("GET", "/fapi/v1/allOrders", {"error": "HTTP 401"})
+    # Currently returns [] instead of raising — xfail documents this gap.
+    with pytest.raises(BinanceAccountError):
+        await list_trades_via(rest, "BTC")

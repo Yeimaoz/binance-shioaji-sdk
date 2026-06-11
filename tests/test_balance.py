@@ -9,7 +9,7 @@ def test_account_balance_is_frozen_dataclass():
     from binance_shioaji_sdk.balance import BinanceAccountBalance
     b = BinanceAccountBalance(acc_balance=1000.0, date="2026-05-25",
                                errmsg="", status="200")
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         b.acc_balance = 999.0  # type: ignore[misc]
 
 
@@ -36,5 +36,5 @@ def test_margin_is_frozen():
                        maintenance_margin=100.0, equity=1000.0,
                        equity_amount=1000.0, today_balance=1000.0,
                        yesterday_balance=0.0, status="200")
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         m.equity = 999.0  # type: ignore[misc]

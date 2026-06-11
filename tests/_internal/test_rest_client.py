@@ -46,9 +46,13 @@ def test_public_top_level_imports() -> None:
     )
 
     assert __version__.startswith("0.")
+    # Verify each symbol is the expected type (class object, not None/alias confusion).
+    # `assert cls is not None` would be a tautology — class objects are never None.
+    # Instead verify they are callable (i.e. actual classes), which can fail if
+    # an import alias resolves to a non-class or gets shadowed.
     for cls in (Binance, BinanceAccount, BinanceContract, Contracts,
                 Order, BinanceTrade, Quote, MarketInfo, BinanceFillReport):
-        assert cls is not None
+        assert callable(cls), f"Expected {cls!r} to be a callable class"
 
 
 def test_internal_imports() -> None:

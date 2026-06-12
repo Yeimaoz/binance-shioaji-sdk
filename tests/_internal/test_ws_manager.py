@@ -105,15 +105,16 @@ class TestWSBaseURL:
                 sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
-        assert captured_urls[0].startswith("wss://stream.binancefuture.com/market/stream"), (
-            f"testnet base_url 沒被使用或缺少 /market/ prefix，實際 URL={captured_urls[0]}"
+        assert captured_urls[0].startswith("wss://stream.binancefuture.com/stream"), (
+            f"testnet base_url 沒被使用或 URL 格式錯誤，實際 URL={captured_urls[0]}"
         )
 
-    async def test_combined_stream_url_has_market_prefix(self) -> None:
-        """run_combined_stream 的 URL 必須含 /market/ prefix（2024-02-29 Binance 新 API）。
+    async def test_combined_stream_url_correct_path(self) -> None:
+        """run_combined_stream 的 URL 必須使用 /stream?streams= 路徑（Binance USDM combined stream）。
 
-        舊 URL /stream?streams=... 握手成功但 Binance 靜默不推資料；
-        新 URL /market/stream?streams=... 才能收到 market data。
+        錯誤路徑 /market/stream?streams= 雖然握手成功、ping/pong 正常，但 Binance 對
+        bookTicker / markPrice 完全不推資料（silent dead）；kline 因頻率極低碰巧有資料
+        而掩蓋此 bug。正確端點：wss://fstream.binance.com/stream?streams=...
         """
         import sys
         import types
@@ -158,8 +159,70 @@ class TestWSBaseURL:
                 sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
-        assert "/market/stream" in captured_urls[0], (
-            f"URL 缺少 /market/ prefix（Binance 2024-02-29 新路徑），實際={captured_urls[0]}"
+        assert "/stream?streams=" in captured_urls[0], (
+            f"URL 路徑錯誤（應為 /stream?streams=，實際={captured_urls[0]}）"
+        )
+        assert "/market/stream" not in captured_urls[0], (
+            f"URL 含有錯誤路徑 /market/stream（bookTicker/markPrice 靜默死亡），實際={captured_urls[0]}"
+        )
+
+    async def test_combined_stream_url_book_ticker_regression(self) -> None:
+        """Regression: combined stream URL 必須是 /stream?streams=，不得是 /market/stream?streams=。
+
+        Bug history: ws_manager.py 曾構造 wss://fstream.binance.com/market/stream?streams=xrpusdt@bookTicker
+        該路徑 WS 握手成功、ping/pong 正常，但 Binance bookTicker/markPrice 零資料轉發（silent dead）。
+        下游 24h soak 中 tick_hub=0、bar_hub=0、三策略零成交，診斷文件：
+        lcz-quant/research/2026-06-12-soak-acceptance-diagnosis.md
+
+        正確路徑：wss://fstream.binance.com/stream?streams=xrpusdt@bookTicker
+        """
+        import sys
+        import types
+
+        captured_urls: list[str] = []
+
+        class _FakeCtx:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+            def __aiter__(self): return self
+            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
+
+        _orig_ws = sys.modules.get("websockets")
+        _orig_exc = sys.modules.get("websockets.exceptions")
+        sys.modules["websockets"] = types.SimpleNamespace(
+            connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
+        )
+        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
+            ConnectionClosedError=type("CCE", (Exception,), {}),
+            ConnectionClosedOK=type("CCO", (Exception,), {}),
+        )
+        stop_evt = asyncio.Event()
+        ws = BinanceWSManager(base_url="wss://fstream.binance.com")
+        try:
+            await asyncio.wait_for(
+                ws.run_combined_stream(
+                    streams=["xrpusdt@bookTicker", "xrpusdt@markPrice"],
+                    on_message=lambda d: None,
+                    stop_event=stop_evt,
+                    max_attempts=1,
+                ),
+                timeout=2.0,
+            )
+        finally:
+            if _orig_ws is not None:
+                sys.modules["websockets"] = _orig_ws
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc
+            else:
+                sys.modules.pop("websockets.exceptions", None)
+
+        assert captured_urls, "websockets.connect 必須被呼叫"
+        url = captured_urls[0]
+        # Must use /stream?streams= (combined stream endpoint)
+        assert url == "wss://fstream.binance.com/stream?streams=xrpusdt@bookTicker/xrpusdt@markPrice", (
+            f"combined stream URL 錯誤，實際={url}"
         )
 
     async def test_user_stream_url_has_private_prefix(self) -> None:

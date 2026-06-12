@@ -146,7 +146,7 @@ class BinanceWSManager:
     ) -> None:
         """通用 Binance combined stream 接收迴圈。
 
-        - 連 wss://fstream.binance.com/market/stream?streams=<stream1>/<stream2>/...
+        - 連 wss://fstream.binance.com/stream?streams=<stream1>/<stream2>/...
         - 收到 message 解 json，把 data 部分傳給 on_message
         - 心跳由 websockets 庫 ping_interval=20s 處理
         - 斷線指數退避重連，stop_event.set() 後跳出
@@ -176,7 +176,7 @@ class BinanceWSManager:
                 await asyncio.sleep(1.0)
                 continue
 
-            url = f"{self.base_url.rstrip('/')}/market/stream?streams={'/'.join(streams)}"
+            url = f"{self.base_url.rstrip('/')}/stream?streams={'/'.join(streams)}"
             logger.info("%s WS 連接: %d streams (base=%s)", log_prefix, len(streams), self.base_url)
 
             try:

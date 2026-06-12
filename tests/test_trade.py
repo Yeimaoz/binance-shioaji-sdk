@@ -21,6 +21,7 @@ def test_order_status_enum_values_are_camel_case_strings():
 
 
 def test_trade_status_is_frozen_dataclass():
+    import dataclasses
     from binance_shioaji_sdk.trade import BinanceTradeStatus, BinanceOrderStatusEnum
     s = BinanceTradeStatus(
         id="42",
@@ -28,7 +29,7 @@ def test_trade_status_is_frozen_dataclass():
         status_code="",
         order_datetime="2026-05-25T12:00:00+00:00",
     )
-    with pytest.raises(Exception):  # FrozenInstanceError
+    with pytest.raises(dataclasses.FrozenInstanceError):
         s.id = "43"  # type: ignore[misc]
 
 

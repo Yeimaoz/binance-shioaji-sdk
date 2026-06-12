@@ -21,7 +21,7 @@ Pick this if you have shioaji muscle memory and want zero-friction crypto execut
 ## Install
 
 ```bash
-pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.4.0
+pip install git+https://github.com/Yeimaoz/binance-shioaji-sdk.git@v0.5.8
 ```
 
 ## Quickstart
@@ -71,12 +71,38 @@ This SDK exists so that one strategy file can work across **TW futures (via shio
 
 ## Status
 
-`v0.2.x` — Working for testnet + mainnet futures. Login, contracts, market info, quotes, orders, account, async WS streaming.
+`v0.5.8` — Working for testnet + mainnet futures. Login, contracts, market info, quotes, orders, account, async WS streaming.
 
 Not yet implemented (open to PRs):
 - Spot trading (futures-first for now)
 - Sub-account / portfolio margin
 - Options
+
+## Known Limitations
+
+These are intentional deviations from full shioaji parity, tracked for a future release:
+
+- **`Order.action` vocabulary**: shioaji uses `action=Action.Buy` / `"Buy"` / `"Sell"`;
+  this SDK uses `"long"` / `"short"` (Binance-native semantics). Migration to shioaji
+  vocabulary is deferred due to downstream impact (all callers and test fixtures must
+  update simultaneously). Tracked for a future breaking version.
+
+- **`list_trades()` return type**: design §3.6 specified `list[BinanceTrade]` with a
+  synthetic `BinanceContract` stub for history entries. At v0.5.8 this method still
+  returns `list[OrderResponse]` for API-continuity with existing consumers. The migration
+  is tracked and will be completed in a future release. Until then, `list_trades()` also
+  silently returns `[]` on REST errors (unlike other methods which raise typed exceptions).
+
+- **`cancel_order()` signature**: shioaji's `sj.cancel_order(trade)` accepts a `Trade`
+  object; this SDK requires `cancel_order(symbol: str, order_id: str)`. Since `place_order()`
+  returns a `BinanceTrade` containing `contract.symbol` and `status.id`, a shim wrapper
+  is straightforward. A `Trade`-accepting overload is tracked for a future release.
+
+- **Dual listenKey keepalive loops**: `Binance` (client.py) and `Quote` (quote.py) each
+  maintain an independent `listenKey` and keepalive loop. The Quote's loop drives the
+  actual `ORDER_TRADE_UPDATE` user stream; the client-layer loop is currently orphaned
+  (its listenKey is never consumed by a WS connection). Consolidation to a single shared
+  listenKey lifecycle is tracked for a future architectural PR.
 
 ## Contributing
 

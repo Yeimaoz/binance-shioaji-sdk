@@ -149,8 +149,19 @@ class Binance:
         # — REST queries still work without user stream. Auth failure
         # (401/403) propagates as BinanceAuthError so caller fails fast on
         # bad credentials instead of getting a half-connected client.
-        await self._create_listen_key()
-        if self._listen_key and self._listen_key_task is None:
+        try:
+            await self._create_listen_key()
+        except Exception:
+            # Clean up the REST client we just opened to avoid resource leak
+            # on auth failure — leaves the instance in a clean pre-login state.
+            if self._rest is not None:
+                await self._rest.close()
+                self._rest = None
+            raise
+
+        if self._listen_key and (
+            self._listen_key_task is None or self._listen_key_task.done()
+        ):
             self._listen_key_task = asyncio.create_task(self._listen_key_keepalive_loop())
 
         self._connected = True
@@ -161,7 +172,7 @@ class Binance:
         if self._listen_key_task is not None and not self._listen_key_task.done():
             self._listen_key_task.cancel()
             try:
-                await asyncio.wait_for(asyncio.shield(self._listen_key_task), timeout=2.0)
+                await asyncio.wait_for(self._listen_key_task, timeout=2.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
         self._listen_key_task = None
@@ -213,6 +224,7 @@ class Binance:
                             self.on_session_down()
                         except Exception as exc:  # noqa: BLE001
                             logger.error("[Binance] on_session_down hook raised: %s", exc)
+                    return  # explicit exit — do not rely on next-iteration _listen_key check
         except asyncio.CancelledError:
             return
 
@@ -279,7 +291,7 @@ class Binance:
         """
         from binance_shioaji_sdk.balance import BinanceAccountBalance
         from binance_shioaji_sdk.exceptions import BinanceAccountError
-        from datetime import date as _date
+        from datetime import datetime, timezone
         rest = self._require_rest()
         raw = await rest.get("/fapi/v2/balance", signed=True)
         if isinstance(raw, dict) and "error" in raw:
@@ -290,7 +302,7 @@ class Binance:
                 if b.get("asset") == "USDT":
                     return BinanceAccountBalance(
                         acc_balance=float(b.get("balance", 0) or 0),
-                        date=_date.today().isoformat(),
+                        date=datetime.now(timezone.utc).date().isoformat(),
                         errmsg="",
                         status="200",
                     )
@@ -409,12 +421,13 @@ class Binance:
     ) -> list[OrderResponse]:
         """Mirror shioaji `sj.list_trades()`.
 
-        NOTE (code-review H-1): v0.4.0 DEFERS list_trades return-type
-        migration to v0.5.0. Design §3.6 specified `list[BinanceTrade]` with
-        synthetic stub `BinanceContract(symbol=...)` for history entries, but
-        §2 in-scope + §6 acceptance criteria did not mandate it. Implementer
-        followed §2/§6 over §3.6 to keep v0.4.0 scope tight. Tracked for
-        v0.5.0 in design §9 follow-ups.
+        Known deviations at v0.5.8 (see README Known Limitations):
+          - Returns `list[OrderResponse]` instead of the design-spec `list[BinanceTrade]`.
+            Design §3.6 specified migration to `list[BinanceTrade]` (with synthetic
+            `BinanceContract` stubs) by v0.5.0; migration is still pending.
+          - Returns `[]` silently on REST errors, unlike other methods which raise
+            `BinanceAccountError`. This violates the v0.4.0 "no silent empty returns"
+            contract documented in README — fix is blocked on the return-type migration.
         """
         return await list_trades_via(self._require_rest(), symbol=symbol, limit=limit)
 

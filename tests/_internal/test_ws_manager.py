@@ -77,6 +77,8 @@ class TestWSBaseURL:
             ConnectionClosedError=type("CCE", (Exception,), {}),
             ConnectionClosedOK=type("CCO", (Exception,), {}),
         )
+        _orig_ws = sys.modules.get("websockets")
+        _orig_exc = sys.modules.get("websockets.exceptions")
         sys.modules["websockets"] = fake_ws  # type: ignore[assignment]
         sys.modules["websockets.exceptions"] = fake_exc  # type: ignore[assignment]
 
@@ -93,8 +95,14 @@ class TestWSBaseURL:
                 timeout=2.0,
             )
         finally:
-            sys.modules.pop("websockets", None)
-            sys.modules.pop("websockets.exceptions", None)
+            if _orig_ws is not None:
+                sys.modules["websockets"] = _orig_ws
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc
+            else:
+                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
         assert captured_urls[0].startswith("wss://stream.binancefuture.com/market/stream"), (
@@ -118,6 +126,8 @@ class TestWSBaseURL:
             def __aiter__(self): return self
             async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
 
+        _orig_ws2 = sys.modules.get("websockets")
+        _orig_exc2 = sys.modules.get("websockets.exceptions")
         sys.modules["websockets"] = types.SimpleNamespace(
             connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
         )
@@ -138,8 +148,14 @@ class TestWSBaseURL:
                 timeout=2.0,
             )
         finally:
-            sys.modules.pop("websockets", None)
-            sys.modules.pop("websockets.exceptions", None)
+            if _orig_ws2 is not None:
+                sys.modules["websockets"] = _orig_ws2
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc2 is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc2
+            else:
+                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
         assert "/market/stream" in captured_urls[0], (
@@ -163,6 +179,8 @@ class TestWSBaseURL:
             def __aiter__(self): return self
             async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
 
+        _orig_ws3 = sys.modules.get("websockets")
+        _orig_exc3 = sys.modules.get("websockets.exceptions")
         sys.modules["websockets"] = types.SimpleNamespace(
             connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
         )
@@ -182,8 +200,14 @@ class TestWSBaseURL:
                 timeout=2.0,
             )
         finally:
-            sys.modules.pop("websockets", None)
-            sys.modules.pop("websockets.exceptions", None)
+            if _orig_ws3 is not None:
+                sys.modules["websockets"] = _orig_ws3
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc3 is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc3
+            else:
+                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
         assert "/private/ws?" in captured_urls[0] and "listenKey=" in captured_urls[0], (
@@ -411,6 +435,8 @@ class TestRunCombinedStream:
         fake_exc = MagicMock()
         fake_exc.ConnectionClosedError = _CCErr
         fake_exc.ConnectionClosedOK = _CCOk
+        _orig_ws4 = sys.modules.get("websockets")
+        _orig_exc4 = sys.modules.get("websockets.exceptions")
         sys.modules["websockets"] = fake_ws
         sys.modules["websockets.exceptions"] = fake_exc
 
@@ -424,8 +450,14 @@ class TestRunCombinedStream:
                 timeout=2.0,
             )
         finally:
-            sys.modules.pop("websockets", None)
-            sys.modules.pop("websockets.exceptions", None)
+            if _orig_ws4 is not None:
+                sys.modules["websockets"] = _orig_ws4
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc4 is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc4
+            else:
+                sys.modules.pop("websockets.exceptions", None)
 
         assert len(received) == 2
         assert received[0]["s"] == "BTCUSDT"
@@ -442,6 +474,8 @@ class TestRunCombinedStream:
                 raise ImportError("simulated missing dep")
 
         # Force the import inside run_combined_stream to fail
+        _orig_ws5 = sys.modules.get("websockets")
+        _orig_exc5 = sys.modules.get("websockets.exceptions")
         sys.modules.pop("websockets", None)
         sys.modules.pop("websockets.exceptions", None)
         sys.modules["websockets"] = _BadModule()  # type: ignore[assignment]
@@ -458,8 +492,14 @@ class TestRunCombinedStream:
                 timeout=2.0,
             )
         finally:
-            sys.modules.pop("websockets", None)
-            sys.modules.pop("websockets.exceptions", None)
+            if _orig_ws5 is not None:
+                sys.modules["websockets"] = _orig_ws5
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc5 is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc5
+            else:
+                sys.modules.pop("websockets.exceptions", None)
 
 
 # ---------------------------------------------------------------------------
@@ -492,6 +532,8 @@ class TestRunUserStream:
             def __getattr__(self, name):
                 raise ImportError("simulated missing dep")
 
+        _orig_ws6 = sys.modules.get("websockets")
+        _orig_exc6 = sys.modules.get("websockets.exceptions")
         sys.modules.pop("websockets", None)
         sys.modules.pop("websockets.exceptions", None)
         sys.modules["websockets"] = _BadModule()  # type: ignore[assignment]
@@ -511,8 +553,14 @@ class TestRunUserStream:
                 timeout=2.0,
             )
         finally:
-            sys.modules.pop("websockets", None)
-            sys.modules.pop("websockets.exceptions", None)
+            if _orig_ws6 is not None:
+                sys.modules["websockets"] = _orig_ws6
+            else:
+                sys.modules.pop("websockets", None)
+            if _orig_exc6 is not None:
+                sys.modules["websockets.exceptions"] = _orig_exc6
+            else:
+                sys.modules.pop("websockets.exceptions", None)
 
         # ImportError aborts before any message dispatch
         on_msg.assert_not_called()

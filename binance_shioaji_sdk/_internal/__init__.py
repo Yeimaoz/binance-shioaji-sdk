@@ -9,10 +9,10 @@ Step 1 of Binance SDK mirror design: protocol-level plumbing
 """
 from binance_shioaji_sdk._internal.rest_client import (
     BinanceRestClient,
-    _TokenBucket,
-    sign_request,
-    _ENDPOINT_WEIGHTS,
-    _WEIGHT_LIMIT_PER_MIN,
+    _TokenBucket,  # noqa: F401 — re-exported for test access; not in __all__ (underscore = private)
+    sign_request,  # noqa: F401 — re-exported for test access; not in __all__
+    _ENDPOINT_WEIGHTS,  # noqa: F401 — re-exported for test access; not in __all__
+    _WEIGHT_LIMIT_PER_MIN,  # noqa: F401 — re-exported for test access; not in __all__
 )
 # v0.4.0: BinanceAuthError lives in top-level exceptions.py.
 # v0.5.0: ExecutionReport alias removed; use BinanceFillReport.
@@ -31,10 +31,9 @@ __all__ = [
     "BinanceFillReport",
     "BinanceRestClient",
     "BinanceWSManager",
-    "_TokenBucket",
-    "sign_request",
-    "_ENDPOINT_WEIGHTS",
-    "_WEIGHT_LIMIT_PER_MIN",
+    # Note: _TokenBucket, sign_request, _ENDPOINT_WEIGHTS, _WEIGHT_LIMIT_PER_MIN
+    # are private implementation details (underscore-prefixed) and intentionally
+    # omitted from __all__ to prevent `import *` re-export.
     "LISTEN_KEY_KEEPALIVE_INTERVAL",
     "VALID_KLINE_INTERVALS",
     "WS_RECONNECT_BASE",

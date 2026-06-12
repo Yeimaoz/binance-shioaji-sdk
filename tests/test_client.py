@@ -7,6 +7,7 @@ httpx + listenKey creation are mocked — no real network.
 """
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -106,6 +107,12 @@ async def test_login_raises_auth_error_on_bad_credentials() -> None:
             await bn.login("bad_key", "bad_secret")
         # Important: connected flag stays False; caller can retry with good keys
         assert bn.is_connected is False
+        # Resource cleanup: REST client opened during login must be closed on auth failure
+        # (prevents half-initialised resource leak).
+        assert bn._rest is None, (
+            "login() must clean up REST client on BinanceAuthError; "
+            "found non-None _rest after failed login"
+        )
 
 
 @pytest.mark.asyncio
@@ -522,3 +529,79 @@ async def test_set_margin_type_rejects_invalid_mode():
     bn = _make_connected_bn(_FakeRest())
     with pytest.raises(ValueError, match="ISOLATED.*CROSSED"):
         await bn.set_margin_type("BTCUSDT", "WEIRD")
+
+
+# ---------------------------------------------------------------------------
+# _listen_key_keepalive_loop ok=False path
+# (code-review-20260611 Medium finding: no test covered this path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_keepalive_loop_clears_listen_key_and_calls_session_down_on_failure() -> None:
+    """keepalive_listen_key returning False must clear _listen_key and call on_session_down."""
+    from binance_shioaji_sdk._internal import BinanceWSManager
+
+    bn = Binance(testnet=True)
+    bn._connected = True
+    bn._listen_key = "lk-abc"
+    bn.api_key = "test_api_key"  # required to pass the early-return guard
+
+    session_down_called: list[bool] = []
+
+    def _on_down() -> None:
+        session_down_called.append(True)
+
+    bn.on_session_down = _on_down
+
+    # Drive keepalive_loop: sleep 0, then keepalive returns False.
+    with patch(
+        "binance_shioaji_sdk.client.LISTEN_KEY_KEEPALIVE_INTERVAL", 0
+    ), patch.object(
+        BinanceWSManager, "keepalive_listen_key", new=AsyncMock(return_value=False)
+    ):
+        from binance_shioaji_sdk._internal.rest_client import BinanceRestClient
+        bn._rest = BinanceRestClient(base_url="https://test", api_key="k", secret_key="s")
+        # Inject a fake inner httpx client so _ensure_client() does not raise
+        bn._rest._client = object()  # type: ignore[assignment]
+        bn._ws = BinanceWSManager()
+
+        # Run the keepalive loop as a task; it should return after ok=False.
+        task = asyncio.create_task(bn._listen_key_keepalive_loop())
+        await asyncio.wait_for(task, timeout=2.0)
+
+    assert bn._listen_key is None, "ok=False must clear _listen_key"
+    assert session_down_called == [True], "on_session_down must be called on keepalive failure"
+
+
+@pytest.mark.asyncio
+async def test_keepalive_loop_swallows_on_session_down_exception() -> None:
+    """Exception raised inside on_session_down must be caught; loop still exits cleanly."""
+    from binance_shioaji_sdk._internal import BinanceWSManager
+
+    bn = Binance(testnet=True)
+    bn._connected = True
+    bn._listen_key = "lk-xyz"
+    bn.api_key = "test_api_key"
+
+    def _bad_hook() -> None:
+        raise RuntimeError("hook exploded")
+
+    bn.on_session_down = _bad_hook
+
+    with patch(
+        "binance_shioaji_sdk.client.LISTEN_KEY_KEEPALIVE_INTERVAL", 0
+    ), patch.object(
+        BinanceWSManager, "keepalive_listen_key", new=AsyncMock(return_value=False)
+    ):
+        from binance_shioaji_sdk._internal.rest_client import BinanceRestClient
+        bn._rest = BinanceRestClient(base_url="https://test", api_key="k", secret_key="s")
+        bn._rest._client = object()  # type: ignore[assignment]
+        bn._ws = BinanceWSManager()
+
+        # Must not propagate RuntimeError from on_session_down
+        task = asyncio.create_task(bn._listen_key_keepalive_loop())
+        await asyncio.wait_for(task, timeout=2.0)
+
+    # Loop exited cleanly despite hook exception; _listen_key still cleared.
+    assert bn._listen_key is None

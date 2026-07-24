@@ -9,6 +9,9 @@ _ws_user_stream_loop migrated to SDK internals.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
@@ -22,6 +25,58 @@ from binance_shioaji_sdk._internal import (
     WS_RECONNECT_BASE,
     WS_RECONNECT_MAX,
 )
+
+
+# ---------------------------------------------------------------------------
+# Shared helper — patch `websockets.connect` to capture the URL it's called with
+# ---------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _patched_websockets_capturing_urls():
+    """Patch `sys.modules["websockets"]` so `websockets.connect(url, ...)` is
+    intercepted; yields (captured_urls, stop_evt). The fake connection raises
+    StopAsyncIteration on first `__anext__`, which also sets stop_evt so the
+    run_combined_stream / run_user_stream loop exits after one connect call."""
+    captured_urls: list[str] = []
+    stop_evt = asyncio.Event()
+
+    class _FakeCtx:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            stop_evt.set()
+            raise StopAsyncIteration
+
+    def _fake_connect(url: str, **kwargs):  # noqa: ARG001
+        captured_urls.append(url)
+        return _FakeCtx()
+
+    orig_ws = sys.modules.get("websockets")
+    orig_exc = sys.modules.get("websockets.exceptions")
+    sys.modules["websockets"] = types.SimpleNamespace(connect=_fake_connect)  # type: ignore[assignment]
+    sys.modules["websockets.exceptions"] = types.SimpleNamespace(
+        ConnectionClosedError=type("CCE", (Exception,), {}),
+        ConnectionClosedOK=type("CCO", (Exception,), {}),
+    )
+    try:
+        yield captured_urls, stop_evt
+    finally:
+        if orig_ws is not None:
+            sys.modules["websockets"] = orig_ws
+        else:
+            sys.modules.pop("websockets", None)
+        if orig_exc is not None:
+            sys.modules["websockets.exceptions"] = orig_exc
+        else:
+            sys.modules.pop("websockets.exceptions", None)
 
 
 # ---------------------------------------------------------------------------
@@ -47,213 +102,121 @@ class TestWSBaseURL:
 
     async def test_combined_stream_uses_instance_base_url(self) -> None:
         """run_combined_stream 應使用 self.base_url 構造 URL，不再 hardcode mainnet。"""
-        import sys
-        import types
-
-        captured_urls: list[str] = []
-
-        class _FakeCtx:
-            async def __aenter__(self):
-                # Capture URL via outer closure — first connect call
-                return self
-
-            async def __aexit__(self, *args):
-                return False
-
-            def __aiter__(self):
-                return self
-
-            async def __anext__(self):
-                # Trigger stop after first iteration
-                stop_evt.set()
-                raise StopAsyncIteration
-
-        def _fake_connect(url: str, **kwargs):  # noqa: ARG001
-            captured_urls.append(url)
-            return _FakeCtx()
-
-        fake_ws = types.SimpleNamespace(connect=_fake_connect)
-        fake_exc = types.SimpleNamespace(
-            ConnectionClosedError=type("CCE", (Exception,), {}),
-            ConnectionClosedOK=type("CCO", (Exception,), {}),
-        )
-        _orig_ws = sys.modules.get("websockets")
-        _orig_exc = sys.modules.get("websockets.exceptions")
-        sys.modules["websockets"] = fake_ws  # type: ignore[assignment]
-        sys.modules["websockets.exceptions"] = fake_exc  # type: ignore[assignment]
-
-        stop_evt = asyncio.Event()
         ws = BinanceWSManager(base_url="wss://stream.binancefuture.com")
-        try:
+        with _patched_websockets_capturing_urls() as (captured_urls, stop_evt):
             await asyncio.wait_for(
                 ws.run_combined_stream(
                     streams=["btcusdt@bookTicker"],
                     on_message=lambda d: None,
                     stop_event=stop_evt,
+                    category="public",
                     max_attempts=1,
                 ),
                 timeout=2.0,
             )
-        finally:
-            if _orig_ws is not None:
-                sys.modules["websockets"] = _orig_ws
-            else:
-                sys.modules.pop("websockets", None)
-            if _orig_exc is not None:
-                sys.modules["websockets.exceptions"] = _orig_exc
-            else:
-                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
-        assert captured_urls[0].startswith("wss://stream.binancefuture.com/stream"), (
+        assert captured_urls[0].startswith("wss://stream.binancefuture.com/public/stream"), (
             f"testnet base_url 沒被使用或 URL 格式錯誤，實際 URL={captured_urls[0]}"
         )
 
-    async def test_combined_stream_url_correct_path(self) -> None:
-        """run_combined_stream 的 URL 必須使用 /stream?streams= 路徑（Binance USDM combined stream）。
+    async def test_combined_stream_market_category_url(self) -> None:
+        """P0 2026-07-24: run_combined_stream(category='market') 必須使用
+        /market/stream?streams= 路徑（Binance 2026-04-23「Important WebSocket Change
+        Notice」新制：market 類 stream 走 /market，legacy 無 category prefix 的
+        /stream 已淘汰）。
 
-        錯誤路徑 /market/stream?streams= 雖然握手成功、ping/pong 正常，但 Binance 對
-        bookTicker / markPrice 完全不推資料（silent dead）；kline 因頻率極低碰巧有資料
-        而掩蓋此 bug。正確端點：wss://fstream.binance.com/stream?streams=...
+        Bug history: v0.5.9 把 combined stream URL 統一改回無 category 的
+        /stream?streams=（當時針對 bookTicker 的 P0 修復），但 2026-04-23 legacy
+        URL 全面淘汰後，markPrice / kline 這類「一般市場資料」改須明確帶 /market
+        prefix，否則握手成功但零訊息推送（silent-dead）。bookTicker 因屬於
+        /public 分類，在淘汰過渡期恰好還能收到資料，掩蓋了 market 類早已失效的事實。
+        Reference: developers.binance.com "Important WebSocket Change Notice"
+        （USDS-M Futures WebSocket System Upgrade Notice, 2026-03-06 公告，
+        2026-04-23 生效）。
         """
-        import sys
-        import types
-
-        captured_urls: list[str] = []
-
-        class _FakeCtx:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *args): return False
-            def __aiter__(self): return self
-            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
-
-        _orig_ws2 = sys.modules.get("websockets")
-        _orig_exc2 = sys.modules.get("websockets.exceptions")
-        sys.modules["websockets"] = types.SimpleNamespace(
-            connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
-        )
-        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
-            ConnectionClosedError=type("CCE", (Exception,), {}),
-            ConnectionClosedOK=type("CCO", (Exception,), {}),
-        )
-        stop_evt = asyncio.Event()
         ws = BinanceWSManager(base_url="wss://fstream.binance.com")
-        try:
+        with _patched_websockets_capturing_urls() as (captured_urls, stop_evt):
             await asyncio.wait_for(
                 ws.run_combined_stream(
                     streams=["dogeusdt@markPrice"],
                     on_message=lambda d: None,
                     stop_event=stop_evt,
+                    category="market",
                     max_attempts=1,
                 ),
                 timeout=2.0,
             )
-        finally:
-            if _orig_ws2 is not None:
-                sys.modules["websockets"] = _orig_ws2
-            else:
-                sys.modules.pop("websockets", None)
-            if _orig_exc2 is not None:
-                sys.modules["websockets.exceptions"] = _orig_exc2
-            else:
-                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
-        assert "/stream?streams=" in captured_urls[0], (
-            f"URL 路徑錯誤（應為 /stream?streams=，實際={captured_urls[0]}）"
-        )
-        assert "/market/stream" not in captured_urls[0], (
-            f"URL 含有錯誤路徑 /market/stream（bookTicker/markPrice 靜默死亡），實際={captured_urls[0]}"
+        assert captured_urls[0] == "wss://fstream.binance.com/market/stream?streams=dogeusdt@markPrice", (
+            f"combined stream URL 錯誤，實際={captured_urls[0]}"
         )
 
-    async def test_combined_stream_url_book_ticker_regression(self) -> None:
-        """Regression: combined stream URL 必須是 /stream?streams=，不得是 /market/stream?streams=。
-
-        Bug history: ws_manager.py 曾構造 wss://fstream.binance.com/market/stream?streams=xrpusdt@bookTicker
-        該路徑 WS 握手成功、ping/pong 正常，但 Binance bookTicker/markPrice 零資料轉發（silent dead）。
-        下游 24h soak 中 tick_hub=0、bar_hub=0、三策略零成交，診斷文件：
-        lcz-quant/research/2026-06-12-soak-acceptance-diagnosis.md
-
-        正確路徑：wss://fstream.binance.com/stream?streams=xrpusdt@bookTicker
-        """
-        import sys
-        import types
-
-        captured_urls: list[str] = []
-
-        class _FakeCtx:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *args): return False
-            def __aiter__(self): return self
-            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
-
-        _orig_ws = sys.modules.get("websockets")
-        _orig_exc = sys.modules.get("websockets.exceptions")
-        sys.modules["websockets"] = types.SimpleNamespace(
-            connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
-        )
-        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
-            ConnectionClosedError=type("CCE", (Exception,), {}),
-            ConnectionClosedOK=type("CCO", (Exception,), {}),
-        )
-        stop_evt = asyncio.Event()
+    async def test_combined_stream_public_category_url(self) -> None:
+        """P0 2026-07-24 regression: bookTicker（高頻公開流）必須走
+        /public/stream?streams=，不得落回 legacy 無 prefix 的 /stream（2026-04-23
+        起已淘汰）也不得誤用 /market（bookTicker 不屬於 market 分類）。"""
         ws = BinanceWSManager(base_url="wss://fstream.binance.com")
-        try:
+        with _patched_websockets_capturing_urls() as (captured_urls, stop_evt):
             await asyncio.wait_for(
                 ws.run_combined_stream(
-                    streams=["xrpusdt@bookTicker", "xrpusdt@markPrice"],
+                    streams=["xrpusdt@bookTicker", "btcusdt@bookTicker"],
+                    on_message=lambda d: None,
+                    stop_event=stop_evt,
+                    category="public",
+                    max_attempts=1,
+                ),
+                timeout=2.0,
+            )
+
+        assert captured_urls, "websockets.connect 必須被呼叫"
+        assert captured_urls[0] == (
+            "wss://fstream.binance.com/public/stream?streams=xrpusdt@bookTicker/btcusdt@bookTicker"
+        ), f"combined stream URL 錯誤，實際={captured_urls[0]}"
+
+    async def test_combined_stream_default_category_is_market(self) -> None:
+        """category 未指定時預設 'market'（呼叫端仍應明確指定；此測試只鎖定預設值本身不漂移）。"""
+        ws = BinanceWSManager(base_url="wss://fstream.binance.com")
+        with _patched_websockets_capturing_urls() as (captured_urls, stop_evt):
+            await asyncio.wait_for(
+                ws.run_combined_stream(
+                    streams=["ethusdt@kline_1m"],
                     on_message=lambda d: None,
                     stop_event=stop_evt,
                     max_attempts=1,
                 ),
                 timeout=2.0,
             )
-        finally:
-            if _orig_ws is not None:
-                sys.modules["websockets"] = _orig_ws
-            else:
-                sys.modules.pop("websockets", None)
-            if _orig_exc is not None:
-                sys.modules["websockets.exceptions"] = _orig_exc
-            else:
-                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
-        url = captured_urls[0]
-        # Must use /stream?streams= (combined stream endpoint)
-        assert url == "wss://fstream.binance.com/stream?streams=xrpusdt@bookTicker/xrpusdt@markPrice", (
-            f"combined stream URL 錯誤，實際={url}"
+        assert captured_urls[0].startswith("wss://fstream.binance.com/market/stream"), (
+            f"預設 category 應為 market，實際 URL={captured_urls[0]}"
         )
 
+    async def test_combined_stream_invalid_category_raises(self) -> None:
+        """category 不在 {'public', 'market'} 時必須 fail fast（避免打錯路徑又
+        silent-dead——這正是本次 P0 bug 的根因型態，寧可炸在呼叫端也不要吞掉）。"""
+        stop_evt = asyncio.Event()
+        with pytest.raises(ValueError, match="category"):
+            await BinanceWSManager().run_combined_stream(
+                streams=["btcusdt@bookTicker"],
+                on_message=lambda d: None,
+                stop_event=stop_evt,
+                category="private",  # not a valid combined-stream category
+            )
+
     async def test_user_stream_url_has_private_prefix(self) -> None:
-        """run_user_stream 的 URL 必須含 /private/ prefix（2024-02-29 Binance 新 API）。
+        """run_user_stream 的 URL 必須含 /private/ prefix（2024-02-29 Binance 新 API，
+        並在 2026-04-23「Important WebSocket Change Notice」新制中確認仍是正確路徑 —
+        本次 P0 URL 巡查（kline/markPrice/user stream silent-dead）複查後 user stream
+        本身不需要改動，此測試鎖定其現況不漂移）。
 
         舊 URL /ws/{listenKey} 握手成功但 Binance 靜默不推 ORDER_TRADE_UPDATE；
         新 URL /private/ws/{listenKey} 才能收到 user data events。
         """
-        import sys
-        import types
-
-        captured_urls: list[str] = []
-
-        class _FakeCtx:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *args): return False
-            def __aiter__(self): return self
-            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
-
-        _orig_ws3 = sys.modules.get("websockets")
-        _orig_exc3 = sys.modules.get("websockets.exceptions")
-        sys.modules["websockets"] = types.SimpleNamespace(
-            connect=lambda url, **kw: (captured_urls.append(url), _FakeCtx())[1]
-        )
-        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
-            ConnectionClosedError=type("CCE", (Exception,), {}),
-            ConnectionClosedOK=type("CCO", (Exception,), {}),
-        )
-        stop_evt = asyncio.Event()
         ws = BinanceWSManager(base_url="wss://fstream.binance.com")
-        try:
+        with _patched_websockets_capturing_urls() as (captured_urls, stop_evt):
             await asyncio.wait_for(
                 ws.run_user_stream(
                     get_listen_key=AsyncMock(return_value="test-listen-key"),
@@ -262,15 +225,6 @@ class TestWSBaseURL:
                 ),
                 timeout=2.0,
             )
-        finally:
-            if _orig_ws3 is not None:
-                sys.modules["websockets"] = _orig_ws3
-            else:
-                sys.modules.pop("websockets", None)
-            if _orig_exc3 is not None:
-                sys.modules["websockets.exceptions"] = _orig_exc3
-            else:
-                sys.modules.pop("websockets.exceptions", None)
 
         assert captured_urls, "websockets.connect 必須被呼叫"
         assert "/private/ws?" in captured_urls[0] and "listenKey=" in captured_urls[0], (

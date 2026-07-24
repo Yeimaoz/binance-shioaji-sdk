@@ -8,10 +8,14 @@ A `Quote` instance lives on `Binance.quote` (wired in by follow-up PR)
 and multiplexes four logical WS channels through one combined-stream task per
 channel type:
 
-    quote_type='tick' or 'mark_price'  ->  <symbol>@markPrice  (WS task 1)
-    quote_type='bookticker'            ->  <symbol>@bookTicker (WS task 2)
-    quote_type='kline_1m' / 'kline_5m' / ...  ->  <symbol>@kline_<iv> (WS task 3)
-    user data stream                   ->  ws://<listenKey>    (WS task 4)
+    quote_type='tick' or 'mark_price'  ->  <symbol>@markPrice  (WS task 1, /market)
+    quote_type='bookticker'            ->  <symbol>@bookTicker (WS task 2, /public)
+    quote_type='kline_1m' / 'kline_5m' / ...  ->  <symbol>@kline_<iv> (WS task 3, /market)
+    user data stream                   ->  <listenKey>         (WS task 4, /private)
+
+WS base URL 依 Binance 2026-04-23「Important WebSocket Change Notice」新制分流：
+`/public`（高頻公開：bookTicker）、`/market`（一般市場資料：markPrice/kline）、
+`/private`（帳戶推播）。見 `BinanceWSManager.run_combined_stream(category=...)`。
 
 Logic adapted from an upstream shioaji-style broker adapter
 (`subscribe_tick` / `subscribe_book_ticker` / `subscribe_kline` /
@@ -306,6 +310,7 @@ class Quote:
             streams=streams,
             on_message=self._dispatch_mark_price,
             stop_event=self._stop_event,
+            category="market",  # markPrice 屬「一般市場資料」，走 /market/stream
             log_prefix="[Quote.mark_price]",
         )
 
@@ -357,6 +362,7 @@ class Quote:
             streams=streams,
             on_message=self._dispatch_book_ticker,
             stop_event=self._stop_event,
+            category="public",  # bookTicker 屬「高頻公開流」，走 /public/stream
             log_prefix="[Quote.bookticker]",
         )
 
@@ -413,6 +419,7 @@ class Quote:
             streams=streams,
             on_message=self._dispatch_kline,
             stop_event=self._stop_event,
+            category="market",  # kline 屬「一般市場資料」，走 /market/stream
             log_prefix="[Quote.kline]",
         )
 

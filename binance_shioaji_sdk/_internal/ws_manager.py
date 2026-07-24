@@ -65,6 +65,7 @@ class BinanceWSManager:
             streams=["btcusdt@bookTicker", "ethusdt@bookTicker"],
             on_message=adapter._dispatch_book_ticker,
             stop_event=adapter._ws_stop,
+            category="public",
         )
     """
 
@@ -140,26 +141,45 @@ class BinanceWSManager:
         on_message: Callable[[dict], None | Awaitable[None]],
         stop_event: asyncio.Event,
         *,
+        category: str = "market",
         log_prefix: str = "[BinanceWSManager]",
         reconnect_max: float = WS_RECONNECT_MAX,
         max_attempts: int | None = None,
     ) -> None:
         """通用 Binance combined stream 接收迴圈。
 
-        - 連 wss://fstream.binance.com/stream?streams=<stream1>/<stream2>/...
+        - 連 wss://fstream.binance.com/<category>/stream?streams=<stream1>/<stream2>/...
         - 收到 message 解 json，把 data 部分傳給 on_message
         - 心跳由 websockets 庫 ping_interval=20s 處理
         - 斷線指數退避重連，stop_event.set() 後跳出
         - max_attempts: None=無限重連；正整數=超過後停止（subscribe_kline 用 5）
 
+        Binance 2026-04-23 legacy WS URL（`/ws`、`/stream`，無 category prefix）已淘汰
+        （官方「Important WebSocket Change Notice」）。新制依 stream 類型分流三個
+        base：`/public`（高頻公開：bookTicker/depth）、`/market`（一般市場資料：
+        markPrice/kline/aggTrade/ticker/forceOrder）、`/private`（帳戶推播，見
+        `run_user_stream`）。連錯 category 的後果是「握手成功、ping/pong 正常，但零
+        訊息推送」（silent-dead，不會拋例外，肉眼/log 看不出來 — 曾在 v0.5.9 誤判為
+        bookTicker 用 legacy `/stream` 即可，實則是 legacy 端在淘汰前對 public 類仍
+        隱性放行，掩蓋了 market 類早已失效的事實）。
+
         Args:
             streams      : Binance stream 名稱清單，e.g. ["btcusdt@bookTicker"]
             on_message   : 每筆 message 的 data dict 呼叫，可 sync 或 async
             stop_event   : 外部 stop signal
+            category     : 'public'（高頻公開：bookTicker/depth）或 'market'（一般市場
+                            資料：markPrice/kline/aggTrade/ticker/forceOrder），預設
+                            'market'——呼叫端務必依 stream 類型明確指定，不可依賴預設值
             log_prefix   : log 標題
             reconnect_max: 重連退避上限（秒）
             max_attempts : 重連次數上限（None=無限）
         """
+        if category not in ("public", "market"):
+            raise ValueError(
+                f"{log_prefix} run_combined_stream: category={category!r} 不合法，"
+                "必須是 'public'（bookTicker/depth）或 'market'（markPrice/kline/aggTrade/ticker）"
+            )
+
         try:
             import websockets
             from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
@@ -176,8 +196,11 @@ class BinanceWSManager:
                 await asyncio.sleep(1.0)
                 continue
 
-            url = f"{self.base_url.rstrip('/')}/stream?streams={'/'.join(streams)}"
-            logger.info("%s WS 連接: %d streams (base=%s)", log_prefix, len(streams), self.base_url)
+            url = f"{self.base_url.rstrip('/')}/{category}/stream?streams={'/'.join(streams)}"
+            logger.info(
+                "%s WS 連接: %d streams (base=%s, category=%s)",
+                log_prefix, len(streams), self.base_url, category,
+            )
 
             try:
                 async with websockets.connect(
@@ -235,6 +258,11 @@ class BinanceWSManager:
         on_connected: Callable[[], None] | None = None,
     ) -> None:
         """User data stream 接收迴圈（特別處理：斷線後 listenKey 失效，需重取）。
+
+        URL 使用 `/private/ws?listenKey=...&events=ORDER_TRADE_UPDATE`（見下方
+        `run_combined_stream` 已於 2024-02-29 遷移，並在 2026-04-23 Binance「Important
+        WebSocket Change Notice」新制中確認仍是 `/private` category 正確路徑，本次 P0
+        巡查未發現需再改動之處）。
 
         Args:
             get_listen_key : async callable 取 listenKey；本 manager 不知 listenKey 從哪來

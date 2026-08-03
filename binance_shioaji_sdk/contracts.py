@@ -153,7 +153,11 @@ class _ContractsNamespace:
 
         added = 0
         for s in data["symbols"]:
-            if s.get("contractType") != "PERPETUAL":
+            # Binance 對美股代幣化永續用獨立的 contractType（實測 2026-08-03：
+            # SPCXUSDT='TRADIFI_PERPETUAL'、WLDUSDT='PERPETUAL'）。只收
+            # 'PERPETUAL' 會把前者全部濾掉 → Contracts.Perp[...] KeyError，
+            # 用它跑的 bot 完全無法啟動。兩者同為 USDM 永續，交易語意相同。
+            if s.get("contractType") not in ("PERPETUAL", "TRADIFI_PERPETUAL"):
                 continue
             if s.get("status") != "TRADING":
                 continue

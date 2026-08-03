@@ -165,6 +165,12 @@ class Binance:
             self._listen_key_task = asyncio.create_task(self._listen_key_keepalive_loop())
 
         self._connected = True
+
+        # v0.2: discover all available contracts from exchangeInfo
+        # 順序要緊：refresh 走 _require_rest()，而它要求 _connected=True。
+        # 放在旗標之前會讓 refresh 必然拋 "not logged in"，被 except 吞成一行
+        # WARNING，registry 永遠只剩硬編碼 seed（實測 2026-08-03）。
+        await self.Contracts.refresh()
         logger.info("[Binance] login OK (testnet=%s)", self.testnet)
 
     async def logout(self) -> None:

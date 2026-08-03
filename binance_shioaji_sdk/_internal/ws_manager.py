@@ -254,8 +254,30 @@ class BinanceWSManager:
         while not stop_event.is_set():
             listen_key = await get_listen_key()
             if not listen_key:
-                logger.error("%s 無法取得 listenKey，停止重連", log_prefix)
-                break
+                # 2026-08-03 修正：舊行為在此 break，一次暫態失敗就永久放棄，
+                # 導致 user stream 靜默死亡（實盤：一次網路中斷讓兩個 grid bot
+                # 的 user stream 同時瞎掉近一小時，成交只能靠 15 分鐘一次的
+                # reconcile 兜底；同一次中斷裡 kline WS 走 backoff 迴圈、30 秒
+                # 內自動復原——兩者行為不一致）。
+                #
+                # `create_listen_key` 對 401/403 是 raise BinanceAuthError
+                # （永久錯誤，由 caller 處理），回 None 只發生在網路/5xx 等
+                # 暫態失敗——故此處一律重試，走與 WS 斷線相同的 backoff。
+                logger.warning(
+                    "%s 取得 listenKey 失敗（attempt %d），將於 backoff 後重試",
+                    log_prefix, attempt,
+                )
+                if stop_event.is_set():
+                    break
+                delay = min(WS_RECONNECT_BASE * (2 ** attempt), WS_RECONNECT_MAX)
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(stop_event.wait()), timeout=delay,
+                    )
+                except asyncio.TimeoutError:
+                    pass
+                attempt += 1
+                continue
 
             url = (
                 f"{self.base_url.rstrip('/')}/private/ws"

@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
+from binance_shioaji_sdk._internal import ws_manager as ws_manager_mod
 from binance_shioaji_sdk._internal import (
     BinanceAuthError,
     BinanceWSManager,
@@ -279,6 +280,96 @@ class TestWSBaseURL:
         assert "events=ORDER_TRADE_UPDATE" in captured_urls[0], (
             f"URL 缺少 events=ORDER_TRADE_UPDATE 參數，實際={captured_urls[0]}"
         )
+
+
+    @pytest.mark.asyncio
+    async def test_user_stream_retries_when_listen_key_transiently_unavailable(
+        self, monkeypatch,
+    ) -> None:
+        """listenKey 暫時取不到（網路抖動）必須重試，不得永久放棄。
+
+        2026-08-03 實盤事故：一次網路中斷讓 `create_listen_key` 回 None，
+        run_user_stream 直接 break 結束整個 task——**兩個 grid bot 的 user
+        stream 同時瞎掉近一小時**，成交只能靠 15 分鐘一次的 reconcile 發現。
+        對照組：同一次中斷裡 kline WS 走 backoff 迴圈，30 秒內自動復原。
+
+        `create_listen_key` 對 401/403 是 raise BinanceAuthError（永久錯誤，
+        該放棄），回 None 只發生在暫態失敗——所以這裡一律該重試。
+        """
+        import sys
+        import types
+
+        monkeypatch.setattr(ws_manager_mod, "WS_RECONNECT_BASE", 0.01)
+        monkeypatch.setattr(ws_manager_mod, "WS_RECONNECT_MAX", 0.01)
+
+        class _FakeCtx:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+            def __aiter__(self): return self
+            async def __anext__(self): stop_evt.set(); raise StopAsyncIteration
+
+        _orig_ws = sys.modules.get("websockets")
+        _orig_exc = sys.modules.get("websockets.exceptions")
+        sys.modules["websockets"] = types.SimpleNamespace(
+            connect=lambda url, **kw: _FakeCtx()
+        )
+        sys.modules["websockets.exceptions"] = types.SimpleNamespace(
+            ConnectionClosedError=type("CCE", (Exception,), {}),
+            ConnectionClosedOK=type("CCO", (Exception,), {}),
+        )
+        stop_evt = asyncio.Event()
+        # 前兩次暫態失敗，第三次成功——舊行為在第一次就 break
+        get_key = AsyncMock(side_effect=[None, None, "recovered-key"])
+        ws = BinanceWSManager(base_url="wss://fstream.binance.com")
+        try:
+            await asyncio.wait_for(
+                ws.run_user_stream(
+                    get_listen_key=get_key,
+                    on_message=lambda d: None,
+                    stop_event=stop_evt,
+                ),
+                timeout=3.0,
+            )
+        finally:
+            for mod, orig in (("websockets", _orig_ws),
+                              ("websockets.exceptions", _orig_exc)):
+                if orig is not None:
+                    sys.modules[mod] = orig
+                else:
+                    sys.modules.pop(mod, None)
+
+        assert get_key.await_count == 3, (
+            f"listenKey 應重試至成功（預期 3 次），實際 {get_key.await_count} 次"
+            "——一次暫態失敗就放棄會讓 user stream 永久瞎掉"
+        )
+
+    @pytest.mark.asyncio
+    async def test_user_stream_stops_when_stop_event_set_during_listen_key_retry(
+        self, monkeypatch,
+    ) -> None:
+        """重試期間收到 stop_event 必須立即收工——重試不得變成無法關閉的迴圈。"""
+        monkeypatch.setattr(ws_manager_mod, "WS_RECONNECT_BASE", 0.01)
+        monkeypatch.setattr(ws_manager_mod, "WS_RECONNECT_MAX", 0.01)
+
+        stop_evt = asyncio.Event()
+        calls = {"n": 0}
+
+        async def _get_key():
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                stop_evt.set()
+            return None
+
+        ws = BinanceWSManager(base_url="wss://fstream.binance.com")
+        await asyncio.wait_for(
+            ws.run_user_stream(
+                get_listen_key=_get_key,
+                on_message=lambda d: None,
+                stop_event=stop_evt,
+            ),
+            timeout=3.0,
+        )
+        assert calls["n"] <= 3, f"stop 後不該續拉 listenKey，實際 {calls['n']} 次"
 
 
 class TestConstants:
@@ -571,19 +662,45 @@ class TestRunCombinedStream:
 
 
 class TestRunUserStream:
-    async def test_no_listen_key_breaks(self) -> None:
-        stop = asyncio.Event()
-        get_lk = AsyncMock(return_value=None)
-        on_msg = MagicMock()
+    async def test_no_listen_key_retries_until_stopped(self, monkeypatch) -> None:
+        """listenKey 持續取不到時**重試**（而非放棄），並由 stop_event 收工。
 
-        await BinanceWSManager().run_user_stream(
-            get_listen_key=get_lk,
-            on_message=on_msg,
-            stop_event=stop,
+        2026-08-03 行為變更：本測試原名 `test_no_listen_key_breaks`，斷言
+        「取不到 listenKey 就結束整個 task」——那把一個 bug 當成規格寫進了
+        測試。實盤代價：一次網路中斷讓兩個 grid bot 的 user stream 同時
+        永久瞎掉（近一小時），而同一次中斷裡 kline WS 走 backoff 迴圈、
+        30 秒內自動復原。
+
+        新契約：暫態失敗一律重試（`create_listen_key` 對 401/403 是 raise，
+        回 None 只代表暫態），只有 stop_event 能終止迴圈。
+        """
+        monkeypatch.setattr(ws_manager_mod, "WS_RECONNECT_BASE", 0.01)
+        monkeypatch.setattr(ws_manager_mod, "WS_RECONNECT_MAX", 0.01)
+
+        stop = asyncio.Event()
+        on_msg = MagicMock()
+        calls = {"n": 0}
+
+        async def _get_lk():
+            calls["n"] += 1
+            if calls["n"] >= 3:
+                stop.set()
+            return None
+
+        await asyncio.wait_for(
+            BinanceWSManager().run_user_stream(
+                get_listen_key=_get_lk,
+                on_message=on_msg,
+                stop_event=stop,
+            ),
+            timeout=3.0,
         )
 
         on_msg.assert_not_called()
-        get_lk.assert_called()  # was queried at least once
+        assert calls["n"] >= 3, (
+            f"應持續重試至 stop_event 被設定（實際只試了 {calls['n']} 次）"
+            "——一次失敗就放棄會讓 user stream 永久瞎掉"
+        )
 
     async def test_user_stream_websockets_import_error_returns_cleanly(self) -> None:
         """If websockets package import fails inside run_user_stream the
